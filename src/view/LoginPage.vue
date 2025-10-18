@@ -1,9 +1,18 @@
-<!-- src/components/LoginPanel.vue -->
 <template>
   <div class="login-container">
     <div class="background-gradient"></div>
     
     <div class="login-card">
+      <!-- 返回按钮 -->
+      <div class="back-btn">
+        <el-button 
+          :icon="ArrowLeft" 
+          circle 
+          @click="router.push('/')"
+          size="small"
+        />
+      </div>
+
       <div class="logo">
         <h1>AI 旅行助手</h1>
         <p class="animated-text">
@@ -168,6 +177,18 @@
           </template>
         </el-input>
         
+        <el-input
+          v-model="registerForm.confirmPassword"
+          type="password"
+          placeholder="确认密码"
+          class="input-field"
+        >
+          <template #prefix>
+            <el-icon><Lock /></el-icon>
+          </template>
+        </el-input>
+        <div v-if="passwordConfirmError" class="error">{{ passwordConfirmError }}</div>
+        
         <el-button 
           type="primary" 
           class="submit-btn" 
@@ -188,7 +209,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { User, Lock, Key } from '@element-plus/icons-vue';
+import { User, Lock, Key, ArrowLeft } from '@element-plus/icons-vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 // 登录表单
 const loginForm = ref({
@@ -206,7 +230,8 @@ const captchaForm = ref({
 const registerForm = ref({
   username: '',
   phone: '',
-  password: ''
+  password: '',
+  confirmPassword: '' // 新增确认密码字段
 });
 
 // 当前激活的标签
@@ -220,6 +245,7 @@ const timer = ref(null);
 // 错误提示
 const phoneError = ref('');
 const passwordError = ref('');
+const passwordConfirmError = ref(''); // 新增确认密码错误提示
 
 // 加载状态
 const loginLoading = ref(false);
@@ -278,6 +304,10 @@ const handleLogin = () => {
   setTimeout(() => {
     loginLoading.value = false;
     ElMessage.success('登录成功！');
+    // 设置登录状态
+    localStorage.setItem('isLoggedIn', 'true');
+    // 跳转首页
+    router.push('/');
   }, 1000);
 };
 
@@ -295,6 +325,8 @@ const handleCaptchaLogin = () => {
   setTimeout(() => {
     captchaLoading.value = false;
     ElMessage.success('验证码登录成功！');
+    localStorage.setItem('isLoggedIn', 'true');
+    router.push('/');
   }, 1000);
 };
 
@@ -317,14 +349,21 @@ const handleRegister = () => {
     ElMessage.error('密码需6-16位');
     return;
   }
+  if (registerForm.value.password !== registerForm.value.confirmPassword) {
+    passwordConfirmError.value = '两次输入的密码不一致';
+    return;
+  }
   
   registerLoading.value = true;
   
   // 模拟API调用
   setTimeout(() => {
     registerLoading.value = false;
-    ElMessage.success('注册成功！请登录');
-    currentTab.value = 'login';
+    ElMessage.success('注册成功！正在登录...');
+    // 模拟设置登录状态
+    localStorage.setItem('isLoggedIn', 'true');
+    // 跳转首页
+    router.push('/');
   }, 1000);
 };
 
@@ -332,6 +371,7 @@ const handleRegister = () => {
 onMounted(() => {
   phoneError.value = '';
   passwordError.value = '';
+  passwordConfirmError.value = '';
 });
 </script>
 
@@ -371,6 +411,13 @@ onMounted(() => {
   z-index: 1;
   transition: all 0.3s ease;
   border: 1px solid rgba(165, 225, 165, 0.5);
+}
+
+.back-btn {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+  z-index: 2;
 }
 
 .logo {
@@ -449,7 +496,7 @@ onMounted(() => {
 }
 
 .input-field {
-  margin-bottom: 2rem; /* 增加间距 */
+  margin-bottom: 1.5rem; /* 调整间距 */
   border-radius: 16px;
   transition: all 0.3s ease;
 }
@@ -485,7 +532,6 @@ onMounted(() => {
 .error {
   color: #ef4444;
   font-size: 0.85rem;
-  margin-top: 0.5rem;
   display: block;
   text-align: left;
   padding-left: 5px;
@@ -564,3 +610,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 </style>
+
+
+
