@@ -197,9 +197,9 @@ const activeTab = ref('generator');
 const activeChatId = ref(null);
 const chatHistory = ref({});
 const expandedCategories = ref({
-  today: true,
-  week: true,
-  month: true
+  today: false,
+  week: false,
+  month: false
 });
 
 // 模拟数据 - 30天内的聊天记录
