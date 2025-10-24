@@ -531,7 +531,7 @@ const savePlan = (plan) => {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 85vh;
+  height: 95vh;
   background-color: #f8fafc;
   font-family: 'Helvetica Neue', Arial, sans-serif;
 }
