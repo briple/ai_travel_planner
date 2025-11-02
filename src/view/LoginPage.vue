@@ -51,27 +51,29 @@
           type="tel"
           placeholder="手机号码"
           maxlength="11"
-          @input="validatePhone"
-          :class="{ 'is-error': phoneError }"
+          @input="validatePhone('login')"
+          :class="{ 'is-error': loginPhoneError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><User /></el-icon>
           </template>
         </el-input>
-        <div v-if="phoneError" class="error">{{ phoneError }}</div>
+        <div v-if="loginPhoneError" class="error">{{ loginPhoneError }}</div>
         
         <el-input
           v-model="loginForm.password"
           type="password"
           placeholder="密码"
-          :class="{ 'is-error': passwordError }"
+          @blur="validatePassword('login')"
+          :class="{ 'is-error': loginPasswordError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><Lock /></el-icon>
           </template>
         </el-input>
+        <div v-if="loginPasswordError" class="error">{{ loginPasswordError }}</div>
         
         <el-button 
           type="primary" 
@@ -94,15 +96,15 @@
           type="tel"
           placeholder="手机号码"
           maxlength="11"
-          @input="validatePhone"
-          :class="{ 'is-error': phoneError }"
+          @input="validatePhone('captcha')"
+          :class="{ 'is-error': captchaPhoneError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><User /></el-icon>
           </template>
         </el-input>
-        <div v-if="phoneError" class="error">{{ phoneError }}</div>
+        <div v-if="captchaPhoneError" class="error">{{ captchaPhoneError }}</div>
         
         <div class="captcha-row">
           <el-input
@@ -110,6 +112,8 @@
             type="text"
             placeholder="验证码"
             maxlength="6"
+            @blur="validateSmsCode"
+            :class="{ 'is-error': smsCodeError }"
             class="input-field"
           >
             <template #prefix>
@@ -117,13 +121,15 @@
             </template>
           </el-input>
           <el-button 
-            :disabled="isSending" 
+            :disabled="isSending || !!captchaPhoneError" 
             class="send-btn"
             @click="sendCaptcha"
+            :loading="smsCodeLoading"
           >
             {{ isSending ? `${countdown}s` : '获取验证码' }}
           </el-button>
         </div>
+        <div v-if="smsCodeError" class="error">{{ smsCodeError }}</div>
         
         <el-button 
           type="primary" 
@@ -144,43 +150,51 @@
         <el-input
           v-model="registerForm.username"
           placeholder="用户名（2-10个字符）"
+          @blur="validateUsername"
+          :class="{ 'is-error': usernameError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><User /></el-icon>
           </template>
         </el-input>
+        <div v-if="usernameError" class="error">{{ usernameError }}</div>
         
         <el-input
           v-model="registerForm.phone"
           type="tel"
           placeholder="手机号码"
           maxlength="11"
-          @input="validatePhone"
-          :class="{ 'is-error': phoneError }"
+          @input="validatePhone('register')"
+          :class="{ 'is-error': registerPhoneError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><User /></el-icon>
           </template>
         </el-input>
-        <div v-if="phoneError" class="error">{{ phoneError }}</div>
+        <div v-if="registerPhoneError" class="error">{{ registerPhoneError }}</div>
         
         <el-input
           v-model="registerForm.password"
           type="password"
           placeholder="密码（6-16位）"
+          @blur="validatePassword('register')"
+          :class="{ 'is-error': registerPasswordError }"
           class="input-field"
         >
           <template #prefix>
             <el-icon><Lock /></el-icon>
           </template>
         </el-input>
+        <div v-if="registerPasswordError" class="error">{{ registerPasswordError }}</div>
         
         <el-input
           v-model="registerForm.confirmPassword"
           type="password"
           placeholder="确认密码"
+          @blur="validateConfirmPassword"
+          :class="{ 'is-error': passwordConfirmError }"
           class="input-field"
         >
           <template #prefix>
@@ -207,12 +221,22 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { User, Lock, Key, ArrowLeft } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
+import { useAuth } from '../composables/useAuth';
 
 const router = useRouter();
+const {
+  loginLoading,
+  smsCodeLoading,
+  registerLoading,
+  loginByPassword,
+  loginBySmsCode,
+  register,
+  sendSmsCode
+} = useAuth();
 
 // 登录表单
 const loginForm = ref({
@@ -223,7 +247,7 @@ const loginForm = ref({
 // 验证码表单
 const captchaForm = ref({
   phone: '',
-  code: ''
+  smsCode: ''
 });
 
 // 注册表单
@@ -231,7 +255,7 @@ const registerForm = ref({
   username: '',
   phone: '',
   password: '',
-  confirmPassword: '' // 新增确认密码字段
+  confirmPassword: ''
 });
 
 // 当前激活的标签
@@ -239,45 +263,140 @@ const currentTab = ref('login');
 
 // 验证码相关
 const isSending = ref(false);
-const countdown = ref(60);
+const countdown = ref(0);
 const timer = ref(null);
 
 // 错误提示
-const phoneError = ref('');
-const passwordError = ref('');
-const passwordConfirmError = ref(''); // 新增确认密码错误提示
-
-// 加载状态
-const loginLoading = ref(false);
-const captchaLoading = ref(false);
-const registerLoading = ref(false);
+const loginPhoneError = ref('');
+const loginPasswordError = ref('');
+const captchaPhoneError = ref('');
+const registerPhoneError = ref('');
+const usernameError = ref('');
+const registerPasswordError = ref('');
+const passwordConfirmError = ref('');
+const smsCodeError = ref('');
 
 // 逐字动画
 const animatedText = computed(() => {
   return '智能规划您的每一次旅程'.split('');
 });
 
-// 验证手机号
-const validatePhone = () => {
-  const phone = currentTab.value === 'register' ? registerForm.value.phone : 
-                currentTab.value === 'captcha' ? captchaForm.value.phone : loginForm.value.phone;
+// 表单校验函数
+const validatePhone = (type) => {
+  const phone = type === 'login' ? loginForm.value.phone : 
+                type === 'captcha' ? captchaForm.value.phone : 
+                registerForm.value.phone;
   
   if (!phone) {
-    phoneError.value = '手机号不能为空';
-    return;
+    setPhoneError(type, '手机号不能为空');
+    return false;
   }
 
   if (!/^1[3-9]\d{9}$/.test(phone)) {
-    phoneError.value = '请输入有效的手机号';
+    setPhoneError(type, '请输入有效的手机号');
+    return false;
   } else {
-    phoneError.value = '';
+    setPhoneError(type, '');
+    return true;
+  }
+};
+
+const setPhoneError = (type, message) => {
+  switch (type) {
+    case 'login':
+      loginPhoneError.value = message;
+      break;
+    case 'captcha':
+      captchaPhoneError.value = message;
+      break;
+    case 'register':
+      registerPhoneError.value = message;
+      break;
+  }
+};
+
+const validatePassword = (type) => {
+  const password = type === 'login' ? loginForm.value.password : registerForm.value.password;
+  
+  if (!password) {
+    setPasswordError(type, '密码不能为空');
+    return false;
+  }
+
+  if (password.length < 6 || password.length > 16) {
+    setPasswordError(type, '密码需6-16位');
+    return false;
+  } else {
+    setPasswordError(type, '');
+    return true;
+  }
+};
+
+const setPasswordError = (type, message) => {
+  if (type === 'login') {
+    loginPasswordError.value = message;
+  } else {
+    registerPasswordError.value = message;
+  }
+};
+
+const validateUsername = () => {
+  if (!registerForm.value.username) {
+    usernameError.value = '用户名不能为空';
+    return false;
+  }
+
+  if (registerForm.value.username.length < 2 || registerForm.value.username.length > 10) {
+    usernameError.value = '用户名需2-10个字符';
+    return false;
+  } else {
+    usernameError.value = '';
+    return true;
+  }
+};
+
+const validateSmsCode = () => {
+  if (!captchaForm.value.code) {
+    smsCodeError.value = '验证码不能为空';
+    return false;
+  }
+
+  if (!/^\d{6}$/.test(captchaForm.value.code)) {
+    smsCodeError.value = '验证码为6位数字';
+    return false;
+  } else {
+    smsCodeError.value = '';
+    return true;
+  }
+};
+
+const validateConfirmPassword = () => {
+  if (!registerForm.value.confirmPassword) {
+    passwordConfirmError.value = '请确认密码';
+    return false;
+  }
+
+  if (registerForm.value.password !== registerForm.value.confirmPassword) {
+    passwordConfirmError.value = '两次输入的密码不一致';
+    return false;
+  } else {
+    passwordConfirmError.value = '';
+    return true;
   }
 };
 
 // 发送验证码
-const sendCaptcha = () => {
-  if (phoneError.value) return;
+const sendCaptcha = async () => {
+  if (!validatePhone('captcha')) return;
   
+  const success = await sendSmsCode(captchaForm.value.phone);
+  if (success) {
+    startCountdown();
+  }
+};
+
+// 开始倒计时
+const startCountdown = () => {
   isSending.value = true;
   countdown.value = 60;
   
@@ -286,92 +405,79 @@ const sendCaptcha = () => {
     if (countdown.value <= 0) {
       clearInterval(timer.value);
       isSending.value = false;
+      timer.value = null;
     }
   }, 1000);
 };
 
 // 处理密码登录
-const handleLogin = () => {
-  if (phoneError.value) return;
-  if (!loginForm.value.password) {
-    passwordError.value = '密码不能为空';
-    return;
-  }
+const handleLogin = async () => {
+  if (!validatePhone('login') || !validatePassword('login')) return;
   
-  loginLoading.value = true;
+  const loginData = {
+    phone: loginForm.value.phone,
+    password: loginForm.value.password
+  };
   
-  // 模拟API调用
-  setTimeout(() => {
-    loginLoading.value = false;
-    ElMessage.success('登录成功！');
-    // 设置登录状态
-    localStorage.setItem('isLoggedIn', 'true');
-    // 跳转首页
-    router.push('/');
-  }, 1000);
+  const user = await loginByPassword(loginData);
 };
 
 // 处理验证码登录
-const handleCaptchaLogin = () => {
-  if (phoneError.value) return;
-  if (!captchaForm.value.code) {
-    ElMessage.error('请输入验证码');
-    return;
-  }
+const handleCaptchaLogin = async () => {
+  if (!validatePhone('captcha') || !validateSmsCode()) return;
   
-  captchaLoading.value = true;
+  const loginData = {
+    phone: captchaForm.value.phone,
+    smsCode: captchaForm.value.code
+  };
   
-  // 模拟API调用
-  setTimeout(() => {
-    captchaLoading.value = false;
-    ElMessage.success('验证码登录成功！');
-    localStorage.setItem('isLoggedIn', 'true');
-    router.push('/');
-  }, 1000);
+  const user = await loginBySmsCode(loginData);
 };
 
 // 处理注册
-const handleRegister = () => {
-  if (phoneError.value) return;
-  if (!registerForm.value.username) {
-    ElMessage.error('用户名不能为空');
-    return;
-  }
-  if (registerForm.value.username.length < 2 || registerForm.value.username.length > 10) {
-    ElMessage.error('用户名需2-10个字符');
-    return;
-  }
-  if (!registerForm.value.password) {
-    ElMessage.error('密码不能为空');
-    return;
-  }
-  if (registerForm.value.password.length < 6 || registerForm.value.password.length > 16) {
-    ElMessage.error('密码需6-16位');
-    return;
-  }
-  if (registerForm.value.password !== registerForm.value.confirmPassword) {
-    passwordConfirmError.value = '两次输入的密码不一致';
-    return;
-  }
+const handleRegister = async () => {
+  if (!validateUsername() || !validatePhone('register') || 
+      !validatePassword('register') || !validateConfirmPassword()) return;
   
-  registerLoading.value = true;
+  const registerData = {
+    username: registerForm.value.username,
+    phone: registerForm.value.phone,
+    password: registerForm.value.password
+  };
   
-  // 模拟API调用
-  setTimeout(() => {
-    registerLoading.value = false;
-    ElMessage.success('注册成功！正在登录...');
-    // 模拟设置登录状态
-    localStorage.setItem('isLoggedIn', 'true');
-    // 跳转首页
-    router.push('/');
-  }, 1000);
+  const user = await register(registerData);
+  if (user) {
+    ElMessage.success('注册成功！请登录...');
+    const loginData = {
+      phone: registerForm.value.phone
+    };
+    registerForm.value = {
+      username: '',
+      phone: '',
+      password: '',
+      confirmPassword: ''
+    };
+    currentTab = ref('login');
+  }
 };
+
+// 清理定时器
+onUnmounted(() => {
+  if (timer.value) {
+    clearInterval(timer.value);
+  }
+});
 
 // 初始化时清除错误
 onMounted(() => {
-  phoneError.value = '';
-  passwordError.value = '';
+  loginPhoneError.value = '';
+  loginPasswordError.value = '';
+  captchaPhoneError.value = '';
+  registerPhoneError.value = '';
+  usernameError.value = '';
+  registerPasswordError.value = '';
   passwordConfirmError.value = '';
+  smsCodeError.value = '';
 });
 </script>
 
@@ -496,20 +602,20 @@ onMounted(() => {
 }
 
 .input-field {
-  margin-bottom: 1.5rem; /* 调整间距 */
+  margin-bottom: 0.5rem;
   border-radius: 16px;
   transition: all 0.3s ease;
 }
 
 .input-field .el-input__inner {
-  height: 54px; /* 稍微增加高度 */
+  height: 54px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.8);
   color: #2d3748;
   font-size: 1rem;
   transition: all 0.3s ease;
-  padding: 0 1.6rem; /* 增加内边距，使输入框更宽 */
+  padding: 0 1.6rem;
 }
 
 .input-field .el-input__inner:focus {
@@ -535,6 +641,8 @@ onMounted(() => {
   display: block;
   text-align: left;
   padding-left: 5px;
+  margin-bottom: 1rem;
+  min-height: 1.2rem;
 }
 
 .submit-btn {
@@ -550,6 +658,7 @@ onMounted(() => {
   transition: all 0.3s ease;
   letter-spacing: 0.5px;
   margin-bottom: 1.5rem;
+  margin-top: 1.5rem;
   height: 56px;
   box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
 }
@@ -587,8 +696,12 @@ onMounted(() => {
 .captcha-row {
   display: flex;
   gap: 12px;
-  margin-bottom: 2rem;
-  align-items: center; /* 垂直居中对齐 */
+  align-items: flex-start;
+}
+
+.captcha-row .input-field {
+  flex: 1;
+  margin-bottom: 0;
 }
 
 .send-btn {
@@ -601,15 +714,16 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.3s;
   min-width: 120px;
-  height: 30px; /* 与输入框高度一致 */
-  margin-bottom: 30px;
+  height: 36px;
+  white-space: nowrap;
 }
 
 .send-btn:disabled {
-  background: #0d9488;
+  background: #ced8d0;
   cursor: not-allowed;
 }
+
+.send-btn:not(:disabled):hover {
+  background: #0d9488;
+}
 </style>
-
-
-
