@@ -222,6 +222,11 @@
             >
               重置
             </el-button>
+            <!-- 语音识别状态指示器 -->
+            <div v-if="isRecording" class="recording-indicator">
+              <div class="recording-dot"></div>
+              <span>正在录音...</span>
+            </div>
             <el-button 
               icon="el-icon-microphone" 
               @click="toggleVoiceInput"
@@ -249,33 +254,35 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue';
 import { ElMessage } from 'element-plus';
+import {useXfAsr} from "../utils/xunfeiUtil";
 
+const { startRecognition, stopRecognition, resultText } = useXfAsr();
 // 对话相关
 const currentInput = ref('');
 const chatMessages = ref([]);
 const isGenerating = ref(false);
 const chatHistoryRef = ref(null);
 
-// 语音输入
+// 语音识别相关
 const isRecording = ref(false);
-
 // 用户头像
 const userAvatar = ref('https://cdn-icons-png.flaticon.com/512/149/149071.png');
 
-// 旅行参数
+// 旅行参数 - 初始化为空
 const tripParams = ref({
-  destination: '日本',
-  duration: 5,
-  budget: 10000,
-  people: 2,
-  preferences: ['美食', '文化'],
+  destination: '',
+  duration: null,
+  budget: null,
+  people: null,
+  preferences: [],
   departureDate: null
 });
 
-// 初始化欢迎消息
+// 初始化欢迎消息和语音识别
 onMounted(() => {
   addAIMessage('您好！我是您的AI旅行规划师，很高兴为您服务。请告诉我您的旅行需求，例如目的地、天数、预算和偏好，我将为您生成完美的旅行计划。');
 });
+
 
 // 监听消息变化，自动滚动到底部
 watch(chatMessages, () => {
@@ -308,23 +315,33 @@ const addAIMessage = (content, type = 'text', plan = null) => {
 
 // 应用参数到输入框
 const applyParams = () => {
-  const prefs = tripParams.value.preferences.join('、');
+  const params = tripParams.value;
+  if (!params.destination) {
+    ElMessage.warning('请先填写目的地');
+    return;
+  }
   
-  currentInput.value = `我想去${tripParams.value.destination}，${tripParams.value.duration}天，预算${tripParams.value.budget}元，${tripParams.value.people}人同行，喜欢${prefs}`;
+  const prefs = params.preferences.length > 0 ? params.preferences.join('、') : '暂无偏好';
+  const duration = params.duration ? `${params.duration}天` : '未设置天数';
+  const budget = params.budget ? `${params.budget}元` : '未设置预算';
+  const people = params.people ? `${params.people}人` : '未设置人数';
+  
+  currentInput.value = `我想去${params.destination}，${duration}，预算${budget}，${people}同行，喜欢${prefs}`;
   
   ElMessage.success('参数已应用到输入框');
 };
 
-// 重置参数
+// 重置参数 - 全部清空
 const resetParams = () => {
   tripParams.value = {
-    destination: '日本',
-    duration: 5,
-    budget: 10000,
-    people: 2,
-    preferences: ['美食', '文化'],
+    destination: '',
+    duration: null,
+    budget: null,
+    people: null,
+    preferences: [],
     departureDate: null
   };
+  currentInput.value = '';
   ElMessage.info('参数已重置');
 };
 
@@ -364,17 +381,17 @@ const sendMessage = async () => {
 // 简化的行程解析逻辑
 const parseTripInput = (input) => {
   // 提取关键信息（简化正则）
-  const destinationMatch = input.match(/(日本|京都|东京|大阪|北海道|泰国|曼谷|普吉岛|欧洲|法国|巴黎|意大利|罗马)/);
+  const destinationMatch = input.match(/(日本|京都|东京|大阪|北海道|泰国|曼谷|普吉岛|欧洲|法国|巴黎|意大利|罗马|北京|上海|杭州|成都|云南|三亚)/);
   const durationMatch = input.match(/(\d+)天/);
   const budgetMatch = input.match(/预算(\d+)元/);
   const peopleMatch = input.match(/(\d+)人/);
   const preferenceMatch = input.match(/(美食|动漫|文化|购物|自然|寺庙|冒险|休闲|亲子|摄影)/g);
 
-  const destination = destinationMatch ? destinationMatch[1] : tripParams.value.destination;
-  const duration = durationMatch ? parseInt(durationMatch[1]) : tripParams.value.duration;
-  const budget = budgetMatch ? parseInt(budgetMatch[1]) : tripParams.value.budget;
-  const people = peopleMatch ? parseInt(peopleMatch[1]) : tripParams.value.people;
-  const preferences = preferenceMatch ? preferenceMatch.join('、') : tripParams.value.preferences.join('、');
+  const destination = destinationMatch ? destinationMatch[1] : (tripParams.value.destination || '日本');
+  const duration = durationMatch ? parseInt(durationMatch[1]) : (tripParams.value.duration || 5);
+  const budget = budgetMatch ? parseInt(budgetMatch[1]) : (tripParams.value.budget || 10000);
+  const people = peopleMatch ? parseInt(peopleMatch[1]) : (tripParams.value.people || 2);
+  const preferences = preferenceMatch ? preferenceMatch.join('、') : (tripParams.value.preferences.join('、') || '综合体验');
 
   // 根据偏好生成不同行程
   let days = [];
@@ -468,19 +485,24 @@ const generateDayPlan = (day, preference, destination) => {
   };
 };
 
-// 语音输入功能（模拟）
-const toggleVoiceInput = () => {
-  isRecording.value = !isRecording.value;
+// 语音输入功能
+const toggleVoiceInput = async() => {
+  
   if (isRecording.value) {
-    ElMessage.info('语音输入已开启，请开始说话...');
-    // 模拟语音识别结果
-    setTimeout(() => {
-      currentInput.value = '我想去日本，5天，预算1万元，喜欢美食和动漫，带孩子';
-      isRecording.value = false;
-      ElMessage.success('语音识别完成');
-    }, 3000);
+    // 停止识别
+    await stopRecognition();
+    isRecording.value = false;
+    await new Promise(resolve => setTimeout(resolve, 300));
+    currentInput.value += resultText.value;
   } else {
-    ElMessage.info('语音输入已停止');
+    // 开始识别
+    try {
+      startRecognition();
+      isRecording.value = true;
+    } catch (error) {
+      ElMessage.error('语音识别启动失败，请重试');
+      console.error('语音识别启动失败:', error);
+    }
   }
 };
 
@@ -893,6 +915,40 @@ const savePlan = (plan) => {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* 录音指示器 */
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #f56c6c;
+  font-size: 0.8rem;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #f56c6c;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0.7);
+  }
+  
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(245, 108, 108, 0);
+  }
+  
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 108, 108, 0);
   }
 }
 
