@@ -2,6 +2,7 @@
   <div class="chat-container">
     <!-- 对话记录区域 -->
     <div class="chat-history" ref="chatHistoryRef">
+      
       <div 
         v-for="(message, index) in chatMessages" 
         :key="index" 
@@ -28,6 +29,13 @@
             <div v-else>
               <!-- 显示行程计划 -->
               <div v-if="message.type === 'trip_plan'" class="trip-plan">
+                <div class="plan-map">
+                  <TripMap 
+                    :destination="message.plan.destination" 
+                    :days="message.plan.days"
+                    style="width: 100%; height: 300px; border-radius: 8px; overflow: hidden;"
+                  />
+                </div>
                 <div class="plan-header">
                   <div class="plan-info">
                     <h2 class="plan-title">{{ message.plan.destination }} 旅行计划</h2>
@@ -198,6 +206,14 @@
         
         <!-- 输入区域 -->
         <div class="input-section">
+          <!-- 录音状态指示器移动到输入框上方 -->
+          <div v-if="isRecording" class="recording-status">
+            <div class="recording-indicator">
+              <div class="recording-dot"></div>
+              <span>正在录音中...请说出您的旅行需求</span>
+            </div>
+          </div>
+          
           <el-input
             v-model="currentInput"
             type="textarea"
@@ -211,26 +227,22 @@
           <div class="input-actions">
             <el-button 
               @click="applyParams"
-              class="apply-btn"
+              class="action-btn apply-btn"
               size="small"
             >
               应用参数
             </el-button>
             <el-button 
               @click="resetParams"
+              class="action-btn"
               size="small"
             >
               重置
             </el-button>
-            <!-- 语音识别状态指示器 -->
-            <div v-if="isRecording" class="recording-indicator">
-              <div class="recording-dot"></div>
-              <span>正在录音...</span>
-            </div>
             <el-button 
               icon="el-icon-microphone" 
               @click="toggleVoiceInput"
-              :class="['voice-btn', { active: isRecording }]"
+              :class="['action-btn', 'voice-btn', { active: isRecording }]"
               size="small"
             >
               {{ isRecording ? '停止' : '语音' }}
@@ -239,7 +251,7 @@
               type="success" 
               @click="sendMessage"
               :loading="isGenerating"
-              class="send-btn"
+              class="action-btn send-btn"
               size="small"
             >
               发送
@@ -255,13 +267,14 @@
 import { ref, onMounted, nextTick, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import {useXfAsr} from "../utils/xunfeiUtil";
-
+import TripMap from './TripMap.vue';
 const { startRecognition, stopRecognition, resultText } = useXfAsr();
 // 对话相关
 const currentInput = ref('');
 const chatMessages = ref([]);
 const isGenerating = ref(false);
 const chatHistoryRef = ref(null);
+
 
 // 语音识别相关
 const isRecording = ref(false);
@@ -684,26 +697,60 @@ const savePlan = (plan) => {
   flex-direction: column;
 }
 
+/* 录音状态指示器 - 移动到输入框上方 */
+.recording-status {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background-color: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #e53e3e;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.recording-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #e53e3e;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+/* 输入按钮区域 */
 .input-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-top: 8px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 统一按钮样式 */
+.action-btn {
+  flex: 1;
+  min-width: 0; /* 允许按钮缩小 */
+  height: 32px;
+  font-size: 0.8rem;
+  padding: 6px 8px;
+  white-space: nowrap;
 }
 
 .apply-btn {
   background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   border-color: transparent;
   color: white;
-  font-size: 0.8rem;
-  padding: 6px 10px;
-  height: 28px;
 }
 
 .voice-btn {
   font-size: 0.8rem;
-  padding: 6px 10px;
-  height: 28px;
 }
 
 .voice-btn.active {
@@ -716,9 +763,6 @@ const savePlan = (plan) => {
   background: linear-gradient(135deg, #10b981 0%, #0d9488 100%);
   border-color: transparent;
   color: white;
-  font-size: 0.8rem;
-  padding: 6px 12px;
-  height: 28px;
 }
 
 /* 打字指示器 */
@@ -918,23 +962,6 @@ const savePlan = (plan) => {
   }
 }
 
-/* 录音指示器 */
-.recording-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #f56c6c;
-  font-size: 0.8rem;
-}
-
-.recording-dot {
-  width: 8px;
-  height: 8px;
-  background-color: #f56c6c;
-  border-radius: 50%;
-  animation: pulse 1.5s infinite;
-}
-
 @keyframes pulse {
   0% {
     transform: scale(0.95);
@@ -982,6 +1009,10 @@ const savePlan = (plan) => {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
+  
+  .action-btn {
+    min-width: 80px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1015,6 +1046,16 @@ const savePlan = (plan) => {
   .plan-actions .el-button {
     width: 100%;
     justify-content: center;
+  }
+  
+  .action-btn {
+    min-width: 70px;
+    font-size: 0.75rem;
+    padding: 4px 6px;
+  }
+  
+  .recording-indicator {
+    font-size: 0.8rem;
   }
 }
 </style>
