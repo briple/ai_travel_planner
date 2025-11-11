@@ -182,16 +182,30 @@ const onSend = async () => {
     ElMessage.warning('请输入您的旅行需求');
     return;
   }
-
   isSending.value = true;
-  
-  // 触发 start-chat 事件，传递输入内容和参数
-  emit('start-chat', {
-    input: currentInput.value,
-    params: { ...tripParams.value }
-  });
-  
-  isSending.value = false;
+  try {
+    // 1. 创建新对话
+    const userId = localStorage.getItem('userId') // 确保这里能拿到有效的 userId
+    if (!userId) {
+      ElMessage.error('用户未登录，请先登录')
+      isSending.value = false
+      return
+    }
+    const res = await conversationApi.createConversation(userId)
+    const conversationId = res.data
+    // 2. 触发事件（可选，如果父组件还需要处理）
+    emit('start-chat', {
+      input: currentInput.value,
+      params: { ...tripParams.value },
+      conversationId: conversationId
+    })
+  } catch (error) {
+    console.error('创建对话失败:', error)
+    ElMessage.error('创建对话失败，请重试')
+  } finally {
+    isSending.value = false
+  }
+
 };
 
 // 语音输入功能

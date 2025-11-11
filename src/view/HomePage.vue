@@ -13,7 +13,7 @@
       <div class="new-chat-section">
         <el-button 
           type="primary" 
-          icon="el-icon-plus" 
+          :icon="Plus" 
           @click="startNewChat" 
           class="new-chat-btn"
         >
@@ -27,22 +27,22 @@
           :class="['nav-item', { active: activeTab === 'generator' }]"
           @click="switchTab('generator')"
         >
-          <i class="el-icon-s-promotion nav-icon"></i>
+          <el-icon class="nav-icon"><Promotion /></el-icon>
           <span class="nav-text">旅游计划生成</span>
-          <i v-if="activeTab === 'generator'" class="el-icon-arrow-right nav-arrow"></i>
+          <el-icon v-if="activeTab === 'generator'" class="nav-arrow"><ArrowRight /></el-icon>
         </div>
         
         <!-- 历史记录子菜单 -->
         <div v-if="activeTab === 'generator'" class="history-submenu">
           <div class="submenu-header">
             <span>历史记录</span>
-            <i class="el-icon-refresh refresh-icon" @click="refreshHistory" title="刷新"></i>
+            <el-icon class="refresh-icon" @click="refreshHistory" title="刷新"><Refresh /></el-icon>
           </div>
           
           <!-- 今天 -->
           <div class="history-category-section">
             <div class="category-header" @click="toggleCategory('today')">
-              <i class="el-icon-arrow-down category-arrow" :class="{ rotated: !expandedCategories.today }"></i>
+              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.today }"><ArrowDown /></el-icon>
               <span class="category-title">今天</span>
               <span class="category-count">{{ todayChats.length }}</span>
             </div>
@@ -53,15 +53,14 @@
                 :class="['history-item', { active: activeChatId === chat.id }]"
                 @click="loadChat(chat.id)"
               >
-                <i class="el-icon-chat-dot-round"></i>
+                <el-icon><ChatDotRound /></el-icon>
                 <div class="chat-info">
                   <span class="chat-title">{{ chat.title }}</span>
                   <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
                 </div>
-                <i class="el-icon-more-outline chat-more" @click.stop="showChatActions(chat)"></i>
               </div>
               <div v-if="todayChats.length === 0" class="no-chats">
-                <i class="el-icon-chat-line-round"></i>
+                <el-icon><ChatLineRound /></el-icon>
                 <p>暂无聊天记录</p>
               </div>
             </div>
@@ -70,7 +69,7 @@
           <!-- 近7天 -->
           <div class="history-category-section">
             <div class="category-header" @click="toggleCategory('week')">
-              <i class="el-icon-arrow-down category-arrow" :class="{ rotated: !expandedCategories.week }"></i>
+              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.week }"><ArrowDown /></el-icon>
               <span class="category-title">近7天</span>
               <span class="category-count">{{ weekChats.length }}</span>
             </div>
@@ -81,15 +80,14 @@
                 :class="['history-item', { active: activeChatId === chat.id }]"
                 @click="loadChat(chat.id)"
               >
-                <i class="el-icon-chat-dot-round"></i>
+                <el-icon><ChatDotRound /></el-icon>
                 <div class="chat-info">
                   <span class="chat-title">{{ chat.title }}</span>
                   <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
                 </div>
-                <i class="el-icon-more-outline chat-more" @click.stop="showChatActions(chat)"></i>
               </div>
               <div v-if="weekChats.length === 0" class="no-chats">
-                <i class="el-icon-chat-line-round"></i>
+                <el-icon><ChatLineRound /></el-icon>
                 <p>暂无聊天记录</p>
               </div>
             </div>
@@ -98,7 +96,7 @@
           <!-- 近30天 -->
           <div class="history-category-section">
             <div class="category-header" @click="toggleCategory('month')">
-              <i class="el-icon-arrow-down category-arrow" :class="{ rotated: !expandedCategories.month }"></i>
+              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.month }"><ArrowDown /></el-icon>
               <span class="category-title">近30天</span>
               <span class="category-count">{{ monthChats.length }}</span>
             </div>
@@ -109,15 +107,14 @@
                 :class="['history-item', { active: activeChatId === chat.id }]"
                 @click="loadChat(chat.id)"
               >
-                <i class="el-icon-chat-dot-round"></i>
+                <el-icon><ChatDotRound /></el-icon>
                 <div class="chat-info">
                   <span class="chat-title">{{ chat.title }}</span>
                   <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
                 </div>
-                <i class="el-icon-more-outline chat-more" @click.stop="showChatActions(chat)"></i>
               </div>
               <div v-if="monthChats.length === 0" class="no-chats">
-                <i class="el-icon-chat-line-round"></i>
+                <el-icon><ChatLineRound /></el-icon>
                 <p>暂无聊天记录</p>
               </div>
             </div>
@@ -128,9 +125,9 @@
           :class="['nav-item', { active: activeTab === 'management' }]"
           @click="switchTab('management')"
         >
-          <i class="el-icon-folder-opened nav-icon"></i>
+          <el-icon class="nav-icon"><FolderOpened /></el-icon>
           <span class="nav-text">旅游计划管理</span>
-          <i v-if="activeTab === 'management'" class="el-icon-arrow-right nav-arrow"></i>
+          <el-icon v-if="activeTab === 'management'" class="nav-arrow"><ArrowRight /></el-icon>
         </div>
       </nav>
 
@@ -144,16 +141,15 @@
                 <span class="username">{{ username }}</span>
                 <span class="user-status">在线</span>
               </div>
-              <i class="el-icon-more user-more"></i>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">
-                  <i class="el-icon-user"></i>
+                  <el-icon><User /></el-icon>
                   个人中心
                 </el-dropdown-item>
                 <el-dropdown-item command="logout" divided>
-                  <i class="el-icon-switch-button"></i>
+                  <el-icon><SwitchButton /></el-icon>
                   退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -162,7 +158,7 @@
         </template>
         <template v-else>
           <el-button type="primary" @click="goToLogin" class="login-btn">
-            <i class="el-icon-user"></i>
+            <el-icon><User /></el-icon>
             登录
           </el-button>
         </template>
@@ -184,8 +180,6 @@
         :chatHistory="chatHistory"
         :initialUserInput="initialUserInput"
         :initialTripParams="initialTripParams"
-        @chat-updated="handleChatUpdate"
-        @new-chat-created="handleNewChatCreated"
       />
       
       <TripManagement v-if="activeTab === 'management'" />
@@ -196,10 +190,24 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { 
+  Plus,
+  Promotion,
+  ArrowRight,
+  ArrowDown,
+  Refresh,
+  ChatDotRound,
+  ChatLineRound,
+  More,
+  FolderOpened,
+  User,
+  SwitchButton
+} from '@element-plus/icons-vue';
 import TripGenerator from '../components/TripGenerator.vue';
 import TripManagement from '../components/TripManager.vue';
 import InitialInput from '../components/InitialInput.vue';
 import router from '../router';
+import conversationApi from '../api/conversationApi';
 
 const isLoggedIn = ref(false);
 const username = ref('用户');
@@ -215,90 +223,14 @@ const showInitialInput = ref(true);
 const initialUserInput = ref('');
 const initialTripParams = ref({});
 
-// 模拟数据 - 30天内的聊天记录
-const mockChatHistory = {
-  'chat_1': {
-    id: 'chat_1',
-    title: '日本东京5日游',
-    startTime: new Date().toISOString(),
-    messages: [
-      { role: 'user', content: '我想去日本东京旅游5天，预算1万元', timestamp: new Date().toISOString() },
-      { role: 'assistant', content: '好的，为您规划东京5日游...', timestamp: new Date().toISOString() }
-    ]
-  },
-  'chat_2': {
-    id: 'chat_2',
-    title: '京都文化之旅',
-    startTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2天前
-    messages: [
-      { role: 'user', content: '我想去京都体验传统文化', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-      { role: 'assistant', content: '京都文化之旅规划中...', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() }
-    ]
-  },
-  'chat_3': {
-    id: 'chat_3',
-    title: '大阪美食探索',
-    startTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5天前
-    messages: [
-      { role: 'user', content: '想去大阪吃美食，有什么推荐？', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
-      { role: 'assistant', content: '大阪美食之旅规划...', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() }
-    ]
-  },
-  'chat_4': {
-    id: 'chat_4',
-    title: '北海道冬季之旅',
-    startTime: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10天前
-    messages: [
-      { role: 'user', content: '冬季想去北海道看雪', timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
-      { role: 'assistant', content: '北海道冬季旅行规划...', timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() }
-    ]
-  },
-  'chat_5': {
-    id: 'chat_5',
-    title: '冲绳海岛度假',
-    startTime: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15天前
-    messages: [
-      { role: 'user', content: '想去冲绳度假，有什么好玩的？', timestamp: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() },
-      { role: 'assistant', content: '冲绳海岛度假规划...', timestamp: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() }
-    ]
-  },
-  'chat_6': {
-    id: 'chat_6',
-    title: '名古屋商务旅行',
-    startTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), // 25天前
-    messages: [
-      { role: 'user', content: '要去名古屋出差，顺便旅游', timestamp: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
-      { role: 'assistant', content: '名古屋商务旅行规划...', timestamp: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() }
-    ]
-  }
-};
-
 // 处理开始聊天
 const handleStartChat = (data) => {
-  const { input, params } = data;
-  
+  const { input, params, conversationId } = data;
   // 保存初始输入和参数
   initialUserInput.value = input;
   initialTripParams.value = params;
-  
-  // 生成新的聊天ID
-  const newChatId = generateChatId();
-  activeChatId.value = newChatId;
-  
-  // 创建新的聊天记录
-  const newChat = {
-    id: newChatId,
-    title: input.substring(0, 20) + (input.length > 20 ? '...' : ''),
-    startTime: new Date().toISOString(),
-    messages: []
-  };
-  
-  chatHistory.value[newChatId] = newChat;
-  saveChatHistory();
-  
-  // 切换到TripGenerator组件
+  activeChatId.value = conversationId;
   showInitialInput.value = false;
-  
   ElMessage.success('开始规划您的旅行！');
 };
 
@@ -308,6 +240,7 @@ const startNewChat = () => {
   activeChatId.value = null;
   initialUserInput.value = '';
   initialTripParams.value = {};
+  activeChatId.value = null;
   ElMessage.success('已开始新对话');
 };
 
@@ -316,87 +249,48 @@ const loadChatHistory = async () => {
   const userId = localStorage.getItem('userId');
   if (!userId) {
     console.warn('未找到 userId，无法加载对话历史');
-    // 使用模拟数据
-    chatHistory.value = mockChatHistory;
+    chatHistory.value = [];
     return;
   }
   try {
-    // 这里应该是真实的API调用，暂时注释掉使用模拟数据
-    // const res = await conversationApi.getConversationsByUserId(Number(userId));
-    // if (res.success && Array.isArray(res.data)) {
-    //   const historyMap = {};
-    //   let firstChatId = null;
-    //   for (const conv of res.data) {
-    //     // 每个 Conversation 需要获取其消息列表来生成 title 和 startTime
-    //     try {
-    //       const msgRes = await conversationApi.getMessagesByConversationId(conv.id);
-    //       const messages = msgRes.success ? msgRes.data : [];
-
-    //       // 提取第一条用户消息作为标题（或默认标题）
-    //       const firstUserMsg = messages.find(m => m.role === 'user');
-    //       const title = firstUserMsg?.content?.substring(0, 20) || '未命名对话';
-
-    //       // startTime 使用第一条消息的时间
-    //       const startTime = messages.length > 0 
-    //         ? messages[0].timestamp 
-    //         : conv.timestamp || new Date().toISOString();
-
-    //       historyMap[conv.id] = {
-    //         id: String(conv.id),
-    //         title,
-    //         startTime,
-    //         messages: messages.map(msg => ({
-    //           ...msg,
-    //           id: String(msg.id),
-    //           conversationId: String(msg.conversationId)
-    //         }))
-    //       };
-
-    //       if (!firstChatId) firstChatId = String(conv.id);
-    //     } catch (err) {
-    //       console.error(`加载对话 ${conv.id} 的消息失败:`, err);
-    //     }
-    //   }
-
-    //   chatHistory.value = historyMap;
-    //   if (firstChatId && !activeChatId.value) {
-    //     activeChatId.value = firstChatId;
-    //     showInitialInput.value = false;
-    //   }
-
-    //   saveChatHistory();
-    // } else {
-    //   ElMessage.warning('未获取到历史对话');
-    //   chatHistory.value = {};
-    // }
-    
-    // 暂时使用模拟数据
-    chatHistory.value = mockChatHistory;
-    
+    const res = await conversationApi.getConversationsByUserId(Number(userId));
+    if (Array.isArray(res)) {
+      console.log('加载到的对话历史:', res);
+      const historyMap = {};
+      let firstChatId = null;
+      for (const conv of res) {
+        historyMap[conv.conversationId] = {
+            id: String(conv.conversationId),
+            title: conv.title || '未命名对话',
+            startTime: conv.timestamp,
+          };
+      }
+      chatHistory.value = historyMap;
+    } else {
+      ElMessage.warning('未获取到历史对话');
+      chatHistory.value = [];
+    }
   } catch (error) {
     console.error('加载对话历史失败:', error);
     ElMessage.error('加载历史记录失败，请稍后重试');
-    // 使用模拟数据作为fallback
-    chatHistory.value = mockChatHistory;
+    chatHistory.value = [];
   }
 };
 
-// 保存聊天历史到本地存储
-const saveChatHistory = () => {
-  localStorage.setItem('travelChatHistory', JSON.stringify(chatHistory.value));
-};
-
-// 生成聊天ID
-const generateChatId = () => {
-  return 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-};
 
 // 加载聊天
-const loadChat = (chatId) => {
-  if (chatHistory.value[chatId]) {
-    activeChatId.value = chatId;
-    showInitialInput.value = false;
-  }
+const loadChat = async (chatId) => {
+    // 将 chatId 转换为数字
+    const conversationId = parseInt(chatId);
+    if (isNaN(conversationId)) {
+      ElMessage.error('对话ID格式错误');
+      return;
+    }
+      // 设置当前活跃聊天
+      activeChatId.value = chatId;
+      showInitialInput.value = false;
+      
+      ElMessage.success('对话加载成功');
 };
 
 // 刷新历史记录
@@ -410,37 +304,6 @@ const toggleCategory = (category) => {
   expandedCategories.value[category] = !expandedCategories.value[category];
 };
 
-// 显示聊天操作菜单
-const showChatActions = (chat) => {
-  ElMessageBox.confirm(`确定要删除 "${chat.title}" 吗？`, '删除对话', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning',
-  }).then(() => {
-    deleteChat(chat.id);
-  }).catch(() => {});
-};
-
-// 删除聊天
-const deleteChat = (chatId) => {
-  if (chatHistory.value[chatId]) {
-    // 如果删除的是当前活跃的聊天，需要切换到其他聊天
-    if (activeChatId.value === chatId) {
-      const remainingChats = Object.keys(chatHistory.value).filter(id => id !== chatId);
-      if (remainingChats.length > 0) {
-        activeChatId.value = remainingChats[0];
-        showInitialInput.value = false;
-      } else {
-        // 如果没有其他聊天，创建一个新的
-        startNewChat();
-      }
-    }
-    
-    delete chatHistory.value[chatId];
-    saveChatHistory();
-    ElMessage.success('对话已删除');
-  }
-};
 
 // 处理聊天更新
 const handleChatUpdate = (chatData) => {
@@ -450,16 +313,9 @@ const handleChatUpdate = (chatData) => {
       ...chatData,
       startTime: chatData.startTime || chatHistory.value[activeChatId.value].startTime
     };
-    saveChatHistory();
   }
 };
 
-// 处理新聊天创建
-const handleNewChatCreated = (chatData) => {
-  chatHistory.value[chatData.id] = chatData;
-  activeChatId.value = chatData.id;
-  saveChatHistory();
-};
 
 // 计算今天、近7天、近30天的聊天
 const todayChats = computed(() => {
@@ -573,6 +429,7 @@ const goToLogin = () => {
   ElMessage.info('跳转到登录页面');
 };
 </script>
+
 
 <style scoped>
 * {
@@ -722,7 +579,7 @@ body {
 }
 
 .refresh-icon {
-  font-size: 0.9rem;
+  font-size: 1.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
   padding: 0.2rem;
@@ -917,10 +774,6 @@ body {
   margin-top: 0.1rem;
 }
 
-.user-more {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 1rem;
-}
 
 /* 登录按钮 */
 .login-btn {
