@@ -474,6 +474,7 @@ const handleUserCommand = (command) => {
     }).then(() => {
       localStorage.removeItem('isLoggedIn');
       localStorage.removeItem('username');
+      localStorage.removeItem('userId');
       isLoggedIn.value = false;
       ElMessage.success('已退出登录');
       router.push('/login');

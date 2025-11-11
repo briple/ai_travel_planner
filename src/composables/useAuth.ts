@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { authApi } from '../api/auth'
+import { authApi } from '../api/authApi'
 import type { 
   LoginPasswordDto, 
   LoginSmsCodeDto, 
@@ -41,6 +41,7 @@ export function useAuth() {
       console.log(response)
       // 存储用户信息
        localStorage.setItem('username', response.username)
+       localStorage.setItem('userId', response.id)
       localStorage.setItem('isLoggedIn', 'true')
       router.push('/')
       return response.data
@@ -73,7 +74,8 @@ export function useAuth() {
       ElMessage.success(response.message || '验证码登录成功！')
       
       // 存储用户信息
-        localStorage.setItem('username', response.username)
+      localStorage.setItem('username', response.username)
+      localStorage.setItem('userId', response.id?.toString() || '')
       localStorage.setItem('isLoggedIn', 'true')
       router.push('/')
       return response.data
