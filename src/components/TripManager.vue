@@ -4,25 +4,25 @@
       <h2 class="page-title">旅游计划管理</h2>
       <p class="page-desc">管理您的所有旅行计划，包括历史行程和收藏计划</p>
     </div>
-    
+
     <!-- 操作栏 -->
     <div class="actions-bar">
       <div class="left-actions">
         <el-button 
           type="success" 
-          icon="el-icon-plus"
           @click="showAddDialog"
           class="new-plan-btn"
         >
+          <ElIcon><Plus /></ElIcon>
           新建计划
         </el-button>
         <el-button 
           type="danger" 
-          icon="el-icon-delete"
           @click="batchDelete"
           :disabled="selectedPlans.length === 0"
           class="batch-delete-btn"
         >
+          <ElIcon><Delete /></ElIcon>
           批量删除
         </el-button>
       </div>
@@ -32,11 +32,14 @@
           placeholder="搜索您的旅行计划..."
           class="search-input"
           clearable
-          prefix-icon="el-icon-search"
-        />
+        >
+          <template #prefix>
+            <ElIcon><Search /></ElIcon>
+          </template>
+        </el-input>
       </div>
     </div>
-    
+
     <!-- 计划列表 -->
     <div class="plan-list">
       <div v-if="filteredPlans.length > 0" class="plans-container">
@@ -59,30 +62,33 @@
               </div>
               <div class="plan-actions">
                 <el-button 
-                  icon="el-icon-view" 
                   circle 
                   size="small"
                   @click="viewPlanDetails(plan)"
                   class="view-btn"
                   title="查看详情"
-                />
+                >
+                  <ElIcon><View /></ElIcon>
+                </el-button>
                 <el-button 
-                  icon="el-icon-edit" 
                   circle 
                   size="small"
                   @click="editPlan(plan)"
                   class="edit-btn"
                   title="编辑"
-                />
+                >
+                  <ElIcon><Edit /></ElIcon>
+                </el-button>
                 <el-button 
-                  icon="el-icon-delete" 
                   circle 
                   size="small"
                   type="danger"
                   @click="deletePlan(plan.id)"
                   class="delete-btn"
                   title="删除"
-                />
+                >
+                  <ElIcon><Delete /></ElIcon>
+                </el-button>
                 <el-checkbox 
                   v-model="selectedPlans" 
                   :label="plan.id"
@@ -90,28 +96,28 @@
                 />
               </div>
             </div>
-            
+
             <div class="plan-content">
               <div class="plan-destination">
-                <i class="el-icon-location-outline"></i>
+                <ElIcon><Location /></ElIcon>
                 <span>{{ plan.destination }}</span>
               </div>
-              
+
               <div class="plan-details">
                 <div class="detail-item">
-                  <i class="el-icon-date"></i>
+                  <ElIcon><Calendar /></ElIcon>
                   <span>{{ plan.duration }}天</span>
                 </div>
                 <div class="detail-item">
-                  <i class="el-icon-coin"></i>
+                  <ElIcon><Coin /></ElIcon>
                   <span>¥{{ plan.budget.toLocaleString() }}</span>
                 </div>
                 <div class="detail-item">
-                  <i class="el-icon-user"></i>
+                  <ElIcon><User /></ElIcon>
                   <span>{{ plan.people }}人</span>
                 </div>
               </div>
-              
+
               <div class="plan-preferences">
                 <el-tag 
                   v-for="pref in plan.preferences" 
@@ -122,14 +128,14 @@
                   {{ pref }}
                 </el-tag>
               </div>
-              
+
               <div class="plan-meta">
                 <span class="create-time">
-                  <i class="el-icon-time"></i>
+                  <ElIcon><Timer /></ElIcon>
                   创建于: {{ formatDate(plan.createdAt) }}
                 </span>
                 <span v-if="plan.updatedAt" class="update-time">
-                  <i class="el-icon-refresh"></i>
+                  <ElIcon><Refresh /></ElIcon>
                   更新于: {{ formatDate(plan.updatedAt) }}
                 </span>
               </div>
@@ -137,7 +143,7 @@
           </div>
         </div>
       </div>
-      
+
       <div v-else class="empty-state">
         <el-empty 
           description="您还没有任何旅行计划，快去生成一个吧！"
@@ -168,11 +174,11 @@
         <el-form-item label="计划标题">
           <el-input v-model="currentPlan.title" placeholder="请输入计划标题" />
         </el-form-item>
-        
+
         <el-form-item label="目的地">
           <el-input v-model="currentPlan.destination" placeholder="请输入目的地" />
         </el-form-item>
-        
+
         <el-form-item label="出行天数">
           <el-input-number 
             v-model="currentPlan.duration" 
@@ -181,7 +187,7 @@
             controls-position="right"
           />
         </el-form-item>
-        
+
         <el-form-item label="预算(元)">
           <el-input-number 
             v-model="currentPlan.budget" 
@@ -191,7 +197,7 @@
             controls-position="right"
           />
         </el-form-item>
-        
+
         <el-form-item label="出行人数">
           <el-input-number 
             v-model="currentPlan.people" 
@@ -200,7 +206,7 @@
             controls-position="right"
           />
         </el-form-item>
-        
+
         <el-form-item label="旅行偏好">
           <el-select
             v-model="currentPlan.preferences"
@@ -218,7 +224,7 @@
             <el-option label="摄影" value="摄影" />
           </el-select>
         </el-form-item>
-        
+
         <el-form-item label="计划状态">
           <el-select v-model="currentPlan.status" placeholder="选择状态" style="width: 100%">
             <el-option label="规划中" value="planning" />
@@ -228,7 +234,7 @@
           </el-select>
         </el-form-item>
       </el-form>
-      
+
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="savePlan" :loading="saving">
@@ -248,28 +254,28 @@
         <div class="plan-detail-header">
           <h2 class="detail-title">{{ currentPlanDetail.destination }} 旅行计划</h2>
           <div class="detail-meta">
-            <span>📅 {{ currentPlanDetail.duration }}天</span>
-            <span>💰 预算: {{ formatPrice(currentPlanDetail.budget) }}</span>
-            <span>👥 {{ currentPlanDetail.people }}人同行</span>
+            <span><ElIcon><Calendar /></ElIcon> {{ currentPlanDetail.duration }}天</span>
+            <span><ElIcon><Coin /></ElIcon> 预算: {{ formatPrice(currentPlanDetail.budget) }}</span>
+            <span><ElIcon><User /></ElIcon> {{ currentPlanDetail.people }}人同行</span>
             <span>🎯 {{ currentPlanDetail.preferences }}</span>
           </div>
           <div class="detail-actions">
             <el-button 
               type="success" 
-              icon="el-icon-download" 
               @click="downloadPlan(currentPlanDetail)"
               class="download-btn"
               size="small"
             >
+              <ElIcon><Download /></ElIcon>
               下载行程
             </el-button>
             <el-button 
               type="primary" 
-              icon="el-icon-folder-opened" 
               @click="savePlanToCollection(currentPlanDetail)"
               class="save-btn"
               size="small"
             >
+              <ElIcon><FolderOpened /></ElIcon>
               收藏计划
             </el-button>
           </div>
@@ -286,7 +292,7 @@
               <h3>第 {{ day.day }} 天</h3>
               <p>{{ day.theme }}</p>
             </div>
-            
+
             <div class="activities">
               <div 
                 v-for="(activity, idx) in day.activities" 
@@ -307,7 +313,7 @@
           </div>
         </div>
       </div>
-      
+
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
@@ -318,7 +324,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-
+// 引入图标组件
+import {
+  Plus,
+  Delete,
+  Search,
+  View,
+  Edit,
+  Location,
+  Calendar,
+  Coin,
+  User,
+  Timer,
+  Refresh,
+  Download,
+  FolderOpened
+} from '@element-plus/icons-vue';
 // 搜索查询
 const searchQuery = ref('');
 
