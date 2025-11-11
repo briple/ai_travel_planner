@@ -177,7 +177,6 @@
       <TripGenerator 
         v-else-if="activeTab === 'generator'" 
         :currentChatId="activeChatId"
-        :chatHistory="chatHistory"
         :initialUserInput="initialUserInput"
         :initialTripParams="initialTripParams"
       />

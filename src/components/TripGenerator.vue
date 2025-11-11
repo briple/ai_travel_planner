@@ -28,24 +28,8 @@
             <!-- AI消息 -->
             <div v-else>
               <!-- 显示行程计划 -->
-              <div v-if="message.type === 'trip_plan'" class="trip-plan">
-                <div class="plan-map">
-                  <TripMap 
-                    :destination="message.plan.destination" 
-                    :days="message.plan.days"
-                    style="width: 100%; height: 300px; border-radius: 8px; overflow: hidden;"
-                  />
-                </div>
+              <div class="trip-plan">
                 <div class="plan-header">
-                  <div class="plan-info">
-                    <h2 class="plan-title">{{ message.plan.destination }} 旅行计划</h2>
-                    <div class="plan-meta">
-                      <span>📅 {{ message.plan.duration }}天</span>
-                      <span>💰 预算: {{ formatPrice(message.plan.budget) }}</span>
-                      <span>👥 {{ message.plan.people }}人同行</span>
-                      <span>🎯 {{ message.plan.preferences }}</span>
-                    </div>
-                  </div>
                   <div class="plan-actions">
                     <el-button 
                       type="success" 
@@ -67,43 +51,11 @@
                     </el-button>
                   </div>
                 </div>
-
-                <!-- 详细行程 -->
-                <div class="day-cards">
-                  <div 
-                    v-for="day in message.plan.days" 
-                    :key="day.day" 
-                    class="day-card"
-                  >
-                    <div class="day-header">
-                      <h3>第 {{ day.day }} 天</h3>
-                      <p>{{ day.theme }}</p>
-                    </div>
-                    
-                    <div class="activities">
-                      <div 
-                        v-for="(activity, idx) in day.activities" 
-                        :key="idx" 
-                        class="activity-item"
-                      >
-                        <div class="time">{{ activity.time }}</div>
-                        <div class="content">
-                          <h4>{{ activity.title }}</h4>
-                          <p class="desc">{{ activity.desc }}</p>
-                          <div class="details">
-                            <span class="type">{{ activity.type }}</span>
-                            <span class="price" v-if="activity.price">¥{{ activity.price }}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
               
               <!-- 普通文本消息 -->
-              <div v-else>
-                <p>{{ message.content }}</p>
+              <div >
+                <p>{{ message.planId }}</p>
               </div>
             </div>
           </div>
@@ -308,16 +260,13 @@ import { ref, onMounted, nextTick, watch, defineProps } from 'vue';
 import { ElMessage } from 'element-plus';
 import {useXfAsr} from "../utils/xunfeiUtil";
 import TripMap from './TripMap.vue';
+import { conversationApi } from '../api/conversationApi';
 
 // 接收父组件传递的参数
 const props = defineProps({
   currentChatId: {
     type: [String, Number],
     default: null
-  },
-  chatHistory: {
-    type: Array,
-    default: () => []
   },
   initialUserInput: {
     type: String,
@@ -365,12 +314,11 @@ const tripParams = ref({
 });
 
 // 初始化组件
-onMounted(() => {
+onMounted(async() => {
   console.log('=== TripGenerator 接收到的参数 ===');
   console.log('currentChatId:', props.currentChatId);
   console.log('initialUserInput:', props.initialUserInput);
   console.log('initialTripParams:', props.initialTripParams);
-  console.log('chatHistory:', props.chatHistory);
   console.log('==============================');
 
   // 如果有初始参数，应用到组件中
@@ -380,20 +328,32 @@ onMounted(() => {
       ...props.initialTripParams
     };
   }
-
   // 如果有初始用户输入，填充到输入框
   if (props.initialUserInput) {
     currentInput.value = props.initialUserInput;
   }
 
-  // 如果有聊天历史，恢复对话
-  if (props.chatHistory && props.chatHistory.length > 0) {
-    chatMessages.value = [...props.chatHistory];
-  } else {
-    // 否则显示欢迎消息
-    addAIMessage('您好！我是AI旅行助手，请告诉我您的旅行需求，或者使用上方的参数设置来规划您的行程。');
+  // 调用API获取该对话的所有消息
+  const response = await conversationApi.getMessagesByConversationId(props.currentChatId);
+  console.log('加载到的对话消息:', response);
+  if (Array.isArray(response)) {
+    // 将API返回的消息转换为前端需要的格式
+    const messages = response.map(msg => ({
+      id: msg.message_id,
+      conversationId: msg.conversationId,
+      role: msg.role,
+      content: msg.message,
+      timestamp: msg.timestamp,
+      planId: msg.planId
+    }));
+
+    chatMessages.value = messages;
   }
+      
+
 });
+
+
 
 // 监听消息变化，自动滚动到底部
 watch(chatMessages, () => {
@@ -417,9 +377,7 @@ const addUserMessage = (content) => {
 const addAIMessage = (content, type = 'text', plan = null) => {
   chatMessages.value.push({
     role: 'assistant',
-    content: content,
-    type: type,
-    plan: plan,
+    planId: planId,
     timestamp: new Date()
   });
 };
