@@ -12,25 +12,25 @@
         <span>🎯 偏好：{{ plan.preferences.join('、') }}</span>
       </div>
       <div class="plan-actions">
-                    <el-button 
-                      type="success" 
-                      icon="el-icon-download" 
-                      @click="downloadPlan()"
-                      class="download-btn"
-                      size="small"
-                    >
-                      下载行程
-                    </el-button>
-                    <el-button 
-                      type="primary" 
-                      icon="el-icon-folder-opened" 
-                      @click="savePlan()"
-                      class="save-btn"
-                      size="small"
-                    >
-                      保存行程
-                    </el-button>
-                  </div>
+    <el-button 
+      type="success" 
+      @click="downloadPlan()"
+      class="download-btn"
+      size="small"
+    >
+      <el-icon><Download /></el-icon>
+      下载行程
+    </el-button>
+    <el-button 
+      type="primary" 
+      @click="savePlan()"
+      class="save-btn"
+      size="small"
+    >
+      <el-icon><FolderOpened /></el-icon>
+      保存行程
+    </el-button>
+  </div>
       <!-- 展开/收起按钮 -->
       <button class="toggle-btn" @click="isExpanded = !isExpanded">
         {{ isExpanded ? '▲ 收起详情' : '▼ 展开行程详情' }}
@@ -134,9 +134,11 @@ import { ref, computed, watch } from 'vue'
 import type { TravelPlanVo } from '../types/travelPlan'
 import TripMap from './TripMap.vue' // ←← 确保路径正确！
 import { ElMessage} from 'element-plus';
-
+import { Download, FolderOpened } from '@element-plus/icons-vue'
+import travelPlanApi from '../api/travelPlanApi';
 const props = defineProps<{
-  plan: TravelPlanVo
+  plan: TravelPlanVo,
+  planId: number
 }>()
 
 const isExpanded = ref(false)
@@ -169,22 +171,10 @@ const downloadPlan = () => {
 };
 
 // 保存行程到旅行计划管理
-const savePlan = () => {
+const savePlan = async() => {
   try {
-    // 获取已保存的行程列表
-    const savedTrips = JSON.parse(localStorage.getItem('savedTrips') || '[]');
-    
-    // 添加新行程
-    const newTrip = {
-      id: Date.now().toString(),
-      ...props.plan,
-      createdAt: new Date().toISOString()
-    };
-    
-    savedTrips.push(newTrip);
-    
-    // 保存回本地存储
-    localStorage.setItem('savedTrips', JSON.stringify(savedTrips));
+    const res = await travelPlanApi.saveTravelPlan(props.planId);
+    console.log('保存行程成功:', res);
     
     ElMessage.success('行程已保存到旅行计划管理');
   } catch (error) {

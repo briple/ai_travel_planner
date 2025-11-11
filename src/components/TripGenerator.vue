@@ -28,7 +28,7 @@
             <!-- AI消息 -->
             <div v-else>
               <div >
-                <TripPlanCard v-if="message.plan" :plan="message.plan" />
+                <TripPlanCard v-if="message.plan" :plan="message.plan" :plan-id="message.planId" />
               </div>
             </div>
           </div>

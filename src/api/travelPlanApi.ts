@@ -42,7 +42,27 @@ export const travelPlanApi = {
     return http.post(`${PLAN_PREFIX}/delete`, null, {
       params: { id }
     })
+  },
+
+  /**
+   * 保存旅行计划
+   */
+  async saveTravelPlan(id: number): Promise<ApiResponse<null>> {
+    return http.post(`${PLAN_PREFIX}/save`, null, {
+      params: { id }
+    })
+  },
+
+  /**
+   * 获取用户保存的旅行计划
+   */
+  async getSavedTravelPlans(userId: number): Promise<ApiResponse<TravelPlanVo[]>> {
+    return http.get(`${PLAN_PREFIX}/getSaved`, {
+      params: { userId }
+    })
   }
 }
+
+
 
 export default travelPlanApi
