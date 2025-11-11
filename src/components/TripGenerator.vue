@@ -27,35 +27,8 @@
             
             <!-- AI消息 -->
             <div v-else>
-              <!-- 显示行程计划 -->
-              <div class="trip-plan">
-                <div class="plan-header">
-                  <div class="plan-actions">
-                    <el-button 
-                      type="success" 
-                      icon="el-icon-download" 
-                      @click="downloadPlan(message.plan)"
-                      class="download-btn"
-                      size="small"
-                    >
-                      下载行程
-                    </el-button>
-                    <el-button 
-                      type="primary" 
-                      icon="el-icon-folder-opened" 
-                      @click="savePlan(message.plan)"
-                      class="save-btn"
-                      size="small"
-                    >
-                      保存行程
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 普通文本消息 -->
               <div >
-                <p>{{ message.planId }}</p>
+                <TripPlanCard v-if="message.plan" :plan="message.plan" />
               </div>
             </div>
           </div>
@@ -259,8 +232,9 @@
 import { ref, onMounted, nextTick, watch, defineProps } from 'vue';
 import { ElMessage } from 'element-plus';
 import {useXfAsr} from "../utils/xunfeiUtil";
-import TripMap from './TripMap.vue';
 import { conversationApi } from '../api/conversationApi';
+import { travelPlanApi } from '../api/travelPlanApi';
+import TripPlanCard from './TripPlanCard.vue' // ←← 确保路径正确！
 
 // 接收父组件传递的参数
 const props = defineProps({
@@ -344,10 +318,19 @@ onMounted(async() => {
       role: msg.role,
       content: msg.message,
       timestamp: msg.timestamp,
-      planId: msg.planId
+      planId: msg.planId,
     }));
 
+    
+    for (const msg of messages) {
+      if(msg.planId){
+        const planResponse = await travelPlanApi.getTravelPlanById(msg.planId);
+        console.log('加载到的旅行计划:', planResponse);
+        msg.plan = planResponse;
+      }
+    }
     chatMessages.value = messages;
+      
   }
       
 
@@ -582,42 +565,7 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(price);
 };
 
-// 下载行程 - 将行程导出为JSON文件
-const downloadPlan = (plan) => {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
-  const downloadAnchorNode = document.createElement('a');
-  downloadAnchorNode.setAttribute("href", dataStr);
-  downloadAnchorNode.setAttribute("download", `${plan.destination}-旅行计划-${new Date().toISOString().split('T')[0]}.json`);
-  document.body.appendChild(downloadAnchorNode);
-  downloadAnchorNode.click();
-  downloadAnchorNode.remove();
-  ElMessage.success('行程已下载为JSON文件');
-};
 
-// 保存行程到旅行计划管理
-const savePlan = (plan) => {
-  try {
-    // 获取已保存的行程列表
-    const savedTrips = JSON.parse(localStorage.getItem('savedTrips') || '[]');
-    
-    // 添加新行程
-    const newTrip = {
-      id: Date.now().toString(),
-      ...plan,
-      createdAt: new Date().toISOString()
-    };
-    
-    savedTrips.push(newTrip);
-    
-    // 保存回本地存储
-    localStorage.setItem('savedTrips', JSON.stringify(savedTrips));
-    
-    ElMessage.success('行程已保存到旅行计划管理');
-  } catch (error) {
-    ElMessage.error('保存行程失败，请重试');
-    console.error('保存行程失败:', error);
-  }
-};
 </script>
 
 <style scoped>

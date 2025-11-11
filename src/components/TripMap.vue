@@ -12,7 +12,7 @@
         >
           <el-option label="全部" value="" />
           <el-option 
-            v-for="day in mockPlan.days" 
+            v-for="day in effectivePlan.days" 
             :key="day.day" 
             :label="`第${day.day}天`" 
             :value="day.day" 
@@ -24,15 +24,15 @@
         <el-button 
           size="small" 
           @click="fitViewToRoute"
-          icon="el-icon-full-screen"
         >
+          <el-icon><FullScreen /></el-icon>
           适应视图
         </el-button>
         <el-button 
           size="small" 
           @click="clearAll"
-          icon="el-icon-delete"
         >
+          <el-icon><Delete /></el-icon>
           清除
         </el-button>
       </div>
@@ -40,6 +40,50 @@
 
     <!-- 地图容器 -->
     <div id="trip-map" class="map-wrapper"></div>
+
+    <!-- 地点列表面板 -->
+    <div class="locations-panel">
+      <div class="panel-header">
+        <h3><el-icon><Location /></el-icon> 行程地点</h3>
+        <span class="location-count">共 {{ allLocations.length }} 个地点</span>
+      </div>
+      
+      <div class="locations-list">
+        <div 
+          v-for="location in filteredLocations" 
+          :key="`${location.day}-${location.index}`"
+          :class="['location-item', { active: currentLocation?.id === location.id }]"
+          @click="focusOnLocation(location)"
+        >
+          <div class="location-marker" :style="{ backgroundColor: location.color }">
+            {{ location.day }}
+          </div>
+          <div class="location-info">
+            <div class="location-title">
+              {{ location.title }}
+              <span class="day-tag">第{{ location.day }}天</span>
+            </div>
+            <div class="location-address">{{ location.address }}</div>
+            <div class="location-time">{{ location.time }}</div>
+          </div>
+          <div class="location-actions">
+            <el-button 
+              size="mini" 
+              circle 
+              @click.stop="focusOnLocation(location, true)"
+              title="定位到此处"
+            >
+              <el-icon><Aim /></el-icon>
+            </el-button>
+          </div>
+        </div>
+        
+        <div v-if="filteredLocations.length === 0" class="no-locations">
+          <el-icon><MapLocation /></el-icon>
+          <p>暂无地点数据</p>
+        </div>
+      </div>
+    </div>
 
     <!-- 路线信息面板 -->
     <div v-if="currentRouteInfo" class="route-info-panel">
@@ -55,13 +99,21 @@
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import type { TravelPlanVo, DayPlan, Activity } from '../types/travelPlan'
+import {
+  FullScreen,
+  Delete,
+  Location,
+  Aim,
+  MapLocation
+} from '@element-plus/icons-vue'
+import type { TravelPlanVo, Activity } from '../types/travelPlan'
 
 // 高德地图配置
-const GAODE_KEY = '7a9824f0e428a15cb02a3700f5836063' // 请确保此 Key 有效
+const GAODE_KEY = '7a9824f0e428a15cb02a3700f5836063'
 
 // ========== 测试数据：北京2日游 ==========
 const mockPlan: TravelPlanVo = {
@@ -132,6 +184,18 @@ const mockPlan: TravelPlanVo = {
           transport: '公交',
           durationMinutes: 240,
           price: 30
+        },
+        {
+          time: '14:00',
+          title: '圆明园遗址公园',
+          location: '北京市海淀区清华西路28号',
+          desc: '参观历史遗址',
+          type: '景点',
+          fromLocation: '颐和园',
+          toLocation: '酒店',
+          transport: '公交',
+          durationMinutes: 180,
+          price: 25
         }
       ]
     }
@@ -151,6 +215,7 @@ const map = ref<any>(null)
 const markers = ref<any[]>([])
 const polylines = ref<any[]>([])
 const currentRouteInfo = ref<any>(null)
+const currentLocation = ref<any>(null)
 
 // 不同天数的颜色配置
 const dayColors = [
@@ -159,7 +224,38 @@ const dayColors = [
   '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
 ]
 
-// 初始化地图（加载 SDK）
+// 计算所有地点
+const allLocations = computed(() => {
+  const locations: any[] = []
+  effectivePlan.value.days.forEach(day => {
+    day.activities.forEach((activity, index) => {
+      if (activity.location?.trim()) {
+        locations.push({
+          id: `${day.day}-${index}`,
+          day: day.day,
+          index,
+          title: activity.title,
+          address: activity.location,
+          time: activity.time,
+          type: activity.type,
+          color: dayColors[(day.day - 1) % dayColors.length],
+          coordinates: null as [number, number] | null
+        })
+      }
+    })
+  })
+  return locations
+})
+
+// 计算筛选后的地点
+const filteredLocations = computed(() => {
+  if (!selectedDay.value) {
+    return allLocations.value
+  }
+  return allLocations.value.filter(loc => loc.day === selectedDay.value)
+})
+
+// 初始化地图
 const initMap = () => {
   return new Promise<boolean>((resolve) => {
     if ((window as any).AMap) {
@@ -169,7 +265,6 @@ const initMap = () => {
     }
 
     const script = document.createElement('script')
-    // ❌ 移除 plugin 参数！v2.0 不支持这种方式自动注册构造函数
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${GAODE_KEY}`
     script.onload = () => {
       createMapInstance()
@@ -183,11 +278,10 @@ const initMap = () => {
   })
 }
 
-// 创建地图实例，并显式加载所需插件
+// 创建地图实例
 const createMapInstance = () => {
   const AMap = (window as any).AMap
 
-  // ✅ 关键：显式加载所有需要的插件（包括控件和地理编码器）
   AMap.plugin([
     'AMap.Geocoder',
     'AMap.Driving',
@@ -197,7 +291,6 @@ const createMapInstance = () => {
     'AMap.ToolBar',
     'AMap.HawkEye'
   ], () => {
-    // 插件加载完成后再初始化地图
     map.value = new AMap.Map('trip-map', {
       zoom: 12,
       center: [116.397428, 39.90923],
@@ -205,7 +298,6 @@ const createMapInstance = () => {
       mapStyle: 'amap://styles/light'
     })
 
-    // 现在可以安全使用这些构造函数
     map.value.addControl(new AMap.Scale())
     map.value.addControl(new AMap.ToolBar())
     map.value.addControl(new AMap.HawkEye())
@@ -231,24 +323,27 @@ const geocode = async (address: string): Promise<[number, number] | null> => {
   })
 }
 
-// 批量获取坐标
+// 批量获取坐标并更新地点数据
 const getCoordinatesForPlan = async () => {
   const coordinatesMap = new Map<string, [number, number]>()
   console.log('📍 开始地理编码所有活动地点...')
 
-  for (const day of effectivePlan.value.days) {
-    console.log(`📅 第${day.day}天活动地点:`, day.activities.map(a => a.location))
-    for (const activity of day.activities) {
-      const loc = activity.location?.trim()
-      if (loc && !coordinatesMap.has(loc)) {
-        console.log(`  🔍 编码: "${loc}"`)
-        const coords = await geocode(loc)
-        if (coords) {
-          coordinatesMap.set(loc, coords)
-          console.log(`  ✅ 成功: ${loc} => [${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}]`)
-        } else {
-          console.warn(`  ❌ 失败: "${loc}"`)
+  // 更新所有地点的坐标
+  for (const location of allLocations.value) {
+    const loc = location.address.trim()
+    if (loc && !coordinatesMap.has(loc)) {
+      console.log(`  🔍 编码: "${loc}"`)
+      const coords = await geocode(loc)
+      if (coords) {
+        coordinatesMap.set(loc, coords)
+        // 更新地点的坐标信息
+        const locIndex = allLocations.value.findIndex(l => l.id === location.id)
+        if (locIndex !== -1) {
+          allLocations.value[locIndex].coordinates = coords
         }
+        console.log(`  ✅ 成功: ${loc} => [${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}]`)
+      } else {
+        console.warn(`  ❌ 失败: "${loc}"`)
       }
     }
   }
@@ -257,33 +352,62 @@ const getCoordinatesForPlan = async () => {
   return coordinatesMap
 }
 
-// 绘制路线
-const drawRoutes = async () => {
+// 绘制所有标记点
+const drawAllMarkers = async () => {
   if (!map.value) return
 
   clearOverlays()
   const coordinatesMap = await getCoordinatesForPlan()
   const AMap = (window as any).AMap
 
-  // 设置地图中心为第一天第一个有效 location（仅一次）
-  if (!map.value.hasSetInitialCenter && effectivePlan.value.days.length > 0) {
-    const firstDay = effectivePlan.value.days[0]
-    for (const act of firstDay.activities) {
-      const loc = act.location?.trim()
-      if (loc) {
-        const coords = coordinatesMap.get(loc)
-        if (coords) {
-          map.value.setCenter(coords)
-          map.value.setZoom(13)
-          map.value.hasSetInitialCenter = true
-          console.log('🎯 地图中心已设为第一天首个地点:', loc, coords)
-          break
-        }
-      }
+  // 绘制所有地点的标记
+  allLocations.value.forEach(location => {
+    if (selectedDay.value && location.day !== selectedDay.value) return
+    
+    const coords = coordinatesMap.get(location.address)
+    if (coords) {
+      addMarker(coords, location, location.color)
     }
-  }
+  })
 
-  // 按天绘制
+  // 绘制路线
+  await drawRoutes(coordinatesMap)
+
+  // 设置初始视图
+  if (allLocations.value.length > 0 && coordinatesMap.size > 0) {
+    fitViewToAllMarkers()
+  }
+}
+
+// 添加标记点
+const addMarker = (coords: [number, number], location: any, color: string) => {
+  const AMap = (window as any).AMap
+  
+  const marker = new AMap.Marker({
+    position: coords,
+    content: `
+      <div class="custom-marker" style="background-color:${color};">
+        ${location.day}
+      </div>
+    `,
+    offset: new AMap.Pixel(-12, -12),
+    title: location.title
+  })
+
+  // 点击标记点事件
+  marker.on('click', () => {
+    focusOnLocation(location, true)
+  })
+
+  map.value.add(marker)
+  markers.value.push(marker)
+}
+
+// 绘制路线
+const drawRoutes = async (coordinatesMap: Map<string, [number, number]>) => {
+  const AMap = (window as any).AMap
+
+  // 按天绘制路线
   for (let i = 0; i < effectivePlan.value.days.length; i++) {
     const day = effectivePlan.value.days[i]
     if (selectedDay.value && day.day !== selectedDay.value) continue
@@ -291,32 +415,16 @@ const drawRoutes = async () => {
     const dayColor = dayColors[i % dayColors.length]
     const dayActivities = day.activities.filter(act => act.location?.trim())
 
-    if (dayActivities.length === 0) continue
-
-    // 单点情况
-    if (dayActivities.length === 1) {
-      const act = dayActivities[0]
-      const coords = coordinatesMap.get(act.location)
-      if (coords) {
-        addMarker(coords, act.title, dayColor, 'single')
-        console.log(`📌 标记单点: ${act.title} (${act.location})`)
-      }
-      continue
-    }
+    if (dayActivities.length <= 1) continue
 
     // 多点连线
     for (let j = 0; j < dayActivities.length - 1; j++) {
       const current = dayActivities[j]
       const next = dayActivities[j + 1]
-      const startCoords = coordinatesMap.get(current.location)
-      const endCoords = coordinatesMap.get(next.location)
+      const startCoords = coordinatesMap.get(current.location!)
+      const endCoords = coordinatesMap.get(next.location!)
 
       if (startCoords && endCoords) {
-        addMarker(startCoords, current.title, dayColor, j === 0 ? 'start' : 'mid')
-        if (j === dayActivities.length - 2) {
-          addMarker(endCoords, next.title, dayColor, 'end')
-        }
-
         await drawRouteBetweenPoints(
           startCoords,
           endCoords,
@@ -328,33 +436,17 @@ const drawRoutes = async () => {
       }
     }
   }
-
-  fitViewToRoute()
 }
 
-const addMarker = (coords: [number, number], title: string, color: string, type: string) => {
-  const AMap = (window as any).AMap
-  let emoji = '📍'
-  if (type === 'start') emoji = '🚩'
-  else if (type === 'end') emoji = '🏁'
-
-  const marker = new AMap.Marker({
-    position: coords,
-    content: `<div class="custom-marker" style="background-color:${color};">${emoji}</div>`,
-    offset: new AMap.Pixel(-12, -12),
-    title
-  })
-
-  marker.on('click', () => {
-    map.value.setCenter(coords)
-    map.value.setZoom(15)
-  })
-
-  map.value.add(marker)
-  markers.value.push(marker)
-}
-
-const drawRouteBetweenPoints = (start: [number, number], end: [number, number], color: string, startAct: Activity, endAct: Activity, day: number) => {
+// 绘制两点间的路线
+const drawRouteBetweenPoints = (
+  start: [number, number], 
+  end: [number, number], 
+  color: string,
+  startAct: Activity,
+  endAct: Activity,
+  day: number
+) => {
   return new Promise<void>((resolve) => {
     const AMap = (window as any).AMap
     const trans = (startAct.transport || '').toLowerCase()
@@ -365,7 +457,7 @@ const drawRouteBetweenPoints = (start: [number, number], end: [number, number], 
     } else if (trans.includes('步行') || trans.includes('走路')) {
       plugin = new AMap.Walking()
     } else {
-      plugin = new AMap.Walking() // 默认步行（适合旅游）
+      plugin = new AMap.Walking()
     }
 
     plugin.search(start, end, (status: string, result: any) => {
@@ -391,7 +483,6 @@ const drawRouteBetweenPoints = (start: [number, number], end: [number, number], 
 
           map.value.add(polyline)
           polylines.value.push(polyline)
-          console.log(`🛣️ 第${day}天: "${startAct.title}" → "${endAct.title}" | ${startAct.transport || '步行'}`)
         }
       }
       resolve()
@@ -399,6 +490,44 @@ const drawRouteBetweenPoints = (start: [number, number], end: [number, number], 
   })
 }
 
+// 聚焦到指定地点
+const focusOnLocation = (location: any, zoom: boolean = false) => {
+  currentLocation.value = location
+  
+  // 查找地点的坐标
+  const coords = allLocations.value.find(l => l.id === location.id)?.coordinates
+  if (coords && map.value) {
+    map.value.setCenter(coords)
+    if (zoom) {
+      map.value.setZoom(16)
+    }
+    
+    // 高亮对应的标记点
+    markers.value.forEach(marker => {
+      const markerPos = marker.getPosition()
+      if (markerPos && markerPos.lng === coords[0] && markerPos.lat === coords[1]) {
+        marker.setAnimation('AMAP_ANIMATION_BOUNCE')
+        setTimeout(() => {
+          marker.setAnimation(null)
+        }, 1000)
+      }
+    })
+  }
+}
+
+// 适应所有标记点的视图
+const fitViewToAllMarkers = () => {
+  if (!map.value || markers.value.length === 0) return
+  
+  const bounds = new (window as any).AMap.Bounds()
+  markers.value.forEach(marker => {
+    bounds.extend(marker.getPosition())
+  })
+  
+  map.value.setBounds(bounds)
+}
+
+// 提取路线信息
 const extractRouteInfo = (result: any, startAct: Activity, endAct: Activity) => {
   const route = result.routes[0]
   if (!route) return null
@@ -423,13 +552,16 @@ const calculateCost = (distance: number, transport?: string) => {
   if (t.includes('步行')) return 0
   if (t.includes('公交') || t.includes('地铁')) return Math.max(2, Math.ceil(distance / 10000) * 3)
   if (t.includes('打车')) return Math.max(8, Math.ceil(distance / 1000) * 2)
-  return 0 // 默认无费用
+  return 0
 }
 
 const fitViewToRoute = () => {
-  if (!map.value || polylines.value.length === 0) return
-  const allPaths = polylines.value.flatMap(p => p.getPath())
-  if (allPaths.length > 0) map.value.setFitView()
+  if (markers.value.length > 0) {
+    fitViewToAllMarkers()
+  } else if (polylines.value.length > 0) {
+    const allPaths = polylines.value.flatMap(p => p.getPath())
+    if (allPaths.length > 0) map.value.setFitView()
+  }
 }
 
 const clearOverlays = () => {
@@ -439,6 +571,7 @@ const clearOverlays = () => {
   markers.value = []
   polylines.value = []
   currentRouteInfo.value = null
+  currentLocation.value = null
 }
 
 const clearAll = () => {
@@ -446,18 +579,20 @@ const clearAll = () => {
   selectedDay.value = ''
 }
 
-const onDayFilterChange = () => drawRoutes()
+const onDayFilterChange = () => {
+  drawAllMarkers()
+}
 
 watch(() => props.plan, () => {
   if (props.plan) effectivePlan.value = props.plan
-  if (map.value) drawRoutes()
+  if (map.value) drawAllMarkers()
 }, { deep: true })
 
 onMounted(async () => {
   const success = await initMap()
   if (success) {
     await nextTick()
-    drawRoutes()
+    drawAllMarkers()
   }
 })
 
@@ -470,10 +605,12 @@ onUnmounted(() => {
 .trip-map-container {
   position: relative;
   width: 100%;
-  height: 600px;
+  height: 100%;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 .map-controls {
@@ -505,7 +642,156 @@ onUnmounted(() => {
 
 .map-wrapper {
   width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 300px;
+}
+
+.locations-panel {
+  background: white;
+  border-top: 1px solid #e8e8e8;
+  flex: 0 0 auto;
+  max-height: 40vh;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.location-count {
+  font-size: 12px;
+  color: #666;
+  background: #e8f4fd;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.locations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.location-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+  flex-shrink: 0;
+}
+
+.location-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.location-item.active {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+
+.location-marker {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.location-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.location-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.day-tag {
+  font-size: 12px;
+  color: #666;
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.location-address {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.location-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.location-actions {
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.no-locations {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #999;
+  font-style: italic;
+  flex: 1;
+}
+
+.no-locations .el-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.no-locations p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .route-info-panel {
@@ -549,11 +835,36 @@ onUnmounted(() => {
   color: white;
   border: 2px solid white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  font-weight: bold;
 }
 
 @media (max-width: 768px) {
-  .trip-map-container { height: 400px; }
-  .map-controls { flex-direction: column; gap: 8px; padding: 8px; }
-  .route-info-panel { position: relative; top: auto; right: auto; margin: 10px; }
+  .trip-map-container { 
+    height: 100vh; 
+  }
+  
+  .map-controls { 
+    flex-direction: column; 
+    gap: 8px; 
+    padding: 8px; 
+    width: auto;
+  }
+  
+  .locations-panel {
+    max-height: 30vh;
+  }
+  
+  .route-info-panel { 
+    position: relative; 
+    top: auto; 
+    right: auto; 
+    margin: 10px; 
+  }
+  
+  .location-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
 }
 </style>

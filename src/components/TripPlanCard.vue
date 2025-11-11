@@ -6,12 +6,31 @@
 
       <!-- 两行概要信息 -->
       <div class="summary-grid">
-        <span>📅 出发日期：{{ formatDate(plan.departureDate) }}</span>
+        <span>📅 出发日期：{{ formatDate(plan.departure_date) }}</span>
         <span>⏳ 行程天数：{{ plan.duration }} 天</span>
         <span>💰 预算：¥{{ plan.budget }}（{{ plan.people }}人）</span>
         <span>🎯 偏好：{{ plan.preferences.join('、') }}</span>
       </div>
-
+      <div class="plan-actions">
+                    <el-button 
+                      type="success" 
+                      icon="el-icon-download" 
+                      @click="downloadPlan()"
+                      class="download-btn"
+                      size="small"
+                    >
+                      下载行程
+                    </el-button>
+                    <el-button 
+                      type="primary" 
+                      icon="el-icon-folder-opened" 
+                      @click="savePlan()"
+                      class="save-btn"
+                      size="small"
+                    >
+                      保存行程
+                    </el-button>
+                  </div>
       <!-- 展开/收起按钮 -->
       <button class="toggle-btn" @click="isExpanded = !isExpanded">
         {{ isExpanded ? '▲ 收起详情' : '▼ 展开行程详情' }}
@@ -50,6 +69,7 @@
           </option>
         </select>
       </div>
+      
 
       <!-- 书面计划内容 -->
       <div v-if="viewMode === 'plan'" class="days-container">
@@ -59,7 +79,7 @@
           class="day-plan"
         >
           <h3>第 {{ dayPlan.day }} 天 · {{ dayPlan.date }}</h3>
-          <p class="weather">🌤️ {{ dayPlan.weatherSummary }}</p>
+          <p class="weather">🌤️ {{ dayPlan.weather_summary }}</p>
 
           <div class="activities">
             <div
@@ -78,12 +98,12 @@
                   <p class="location">📍 {{ activity.location }}</p>
                 </div>
 
-                <p v-if="activity.fromLocation && activity.toLocation" class="route">
-                  🚶 从 {{ activity.fromLocation }} → {{ activity.toLocation }}
+                <p v-if="activity.fromLocation && activity.to_location" class="route">
+                  🚶 从 {{ activity.fromLocation }} → {{ activity.to_location }}
                 </p>
                 <p v-if="activity.transport" class="transport">🚇 {{ activity.transport }}</p>
-                <p v-if="activity.durationMinutes !== null" class="duration">
-                  ⏱️ 耗时：{{ activity.durationMinutes }} 分钟
+                <p v-if="activity.duration_minutes !== null" class="duration">
+                  ⏱️ 耗时：{{ activity.duration_minutes }} 分钟
                 </p>
                 <p v-if="activity.desc" class="desc">{{ activity.desc }}</p>
                 <p class="price">💰 ¥{{ activity.price }}</p>
@@ -93,10 +113,10 @@
         </div>
 
         <!-- 旅行小贴士 -->
-        <div v-if="plan.travelTips.length > 0" class="tips">
+        <div v-if="plan.travel_tips" class="tips">
           <h3>📌 旅行小贴士</h3>
           <ul>
-            <li v-for="(tip, i) in plan.travelTips" :key="i">{{ tip }}</li>
+            <li v-for="(tip, i) in plan.travel_tips" :key="i">{{ tip }}</li>
           </ul>
         </div>
       </div>
@@ -113,7 +133,7 @@
 import { ref, computed, watch } from 'vue'
 import type { TravelPlanVo } from '../types/travelPlan'
 import TripMap from './TripMap.vue' // ←← 确保路径正确！
-
+import { ElMessage} from 'element-plus';
 
 const props = defineProps<{
   plan: TravelPlanVo
@@ -122,7 +142,7 @@ const props = defineProps<{
 const isExpanded = ref(false)
 const viewMode = ref<'plan' | 'map'>('plan') // 默认显示计划
 const selectedDay = ref<number | ''>('')
-const coordinatesMap = ref<Record<string, string>>({})
+
 
 const formatDate = (dateStr: string | null): string => {
   if (!dateStr || dateStr === 'null') return '未指定'
@@ -136,11 +156,48 @@ const filteredDays = computed(() => {
   return props.plan.days.filter(day => day.day === selectedDay.value)
 })
 
+// 下载行程 - 将行程导出为JSON文件
+const downloadPlan = () => {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(props, null, 2));
+  const downloadAnchorNode = document.createElement('a');
+  downloadAnchorNode.setAttribute("href", dataStr);
+  downloadAnchorNode.setAttribute("download", `${props.plan.destination}-旅行计划-${new Date().toISOString().split('T')[0]}.json`);
+  document.body.appendChild(downloadAnchorNode);
+  downloadAnchorNode.click();
+  downloadAnchorNode.remove();
+  ElMessage.success('行程已下载为JSON文件');
+};
+
+// 保存行程到旅行计划管理
+const savePlan = () => {
+  try {
+    // 获取已保存的行程列表
+    const savedTrips = JSON.parse(localStorage.getItem('savedTrips') || '[]');
+    
+    // 添加新行程
+    const newTrip = {
+      id: Date.now().toString(),
+      ...props.plan,
+      createdAt: new Date().toISOString()
+    };
+    
+    savedTrips.push(newTrip);
+    
+    // 保存回本地存储
+    localStorage.setItem('savedTrips', JSON.stringify(savedTrips));
+    
+    ElMessage.success('行程已保存到旅行计划管理');
+  } catch (error) {
+    ElMessage.error('保存行程失败，请重试');
+    console.error('保存行程失败:', error);
+  }
+};
+
 </script>
 
 <style scoped>
 .trip-plan-card {
-  max-width: 600px;
+  max-width: 800px;
   margin: 0 auto;
   padding: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -178,6 +235,7 @@ const filteredDays = computed(() => {
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;
+  margin-top:20px;
 }
 
 .toggle-btn:hover {
@@ -237,7 +295,7 @@ const filteredDays = computed(() => {
 /* 地图容器 */
 .map-container {
   width: 100%;
-  height: 400px;
+  height: 800px;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);

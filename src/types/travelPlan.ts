@@ -6,15 +6,15 @@ export interface TravelPlanVo {
   budget: number
   people: number
   preferences: string[]
-  departureDate: string // 对应后端 @JsonProperty("departure_date")
+  departure_date: string // 对应后端 @JsonProperty("departure_date")
   days: DayPlan[]
-  travelTips: string[] // 对应后端 @JsonProperty("travel_tips")
+  travel_tips: string[] // 对应后端 @JsonProperty("travel_tips")
 }
 
 export interface DayPlan {
   day: number
   date: string // "YYYY-MM-DD"
-  weatherSummary: string // 对应 @JsonProperty("weather_summary")
+  weather_summary: string // 对应 @JsonProperty("weather_summary")
   activities: Activity[]
 }
 
@@ -25,9 +25,9 @@ export interface Activity {
   desc: string
   type: string // e.g., "餐饮", "景点"
   fromLocation: string // 对应 @JsonProperty("from_location")
-  toLocation: string   // 对应 @JsonProperty("to_location")
+  to_location: string   // 对应 @JsonProperty("to_location")
   transport: string
-  durationMinutes: number | null // 对应 @JsonProperty("duration_minutes")
+  duration_minutes: number | null // 对应 @JsonProperty("duration_minutes")
   price: number
 }
 
