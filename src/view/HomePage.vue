@@ -16,7 +16,6 @@
           icon="el-icon-plus" 
           @click="startNewChat" 
           class="new-chat-btn"
-          :disabled="activeTab !== 'generator'"
         >
           新建对话
         </el-button>
@@ -173,22 +172,23 @@
     <!-- 右侧主内容区 -->
     <main class="main-content">
       <!-- 初始输入页 -->
-        <InitialInput 
-          v-if="isFirstChat" 
-          @start-chat="handleStartChat"
-        />
+      <InitialInput 
+        v-if="showInitialInput" 
+        @start-chat="handleStartChat"
+      />
 
-        <!-- 完整聊天页 -->
-        <TripGenerator 
-          v-else
-          v-if="activeTab === 'generator'" 
-          :currentChatId="activeChatId"
-          :chatHistory="chatHistory"
-          @chat-updated="handleChatUpdate"
-          @new-chat-created="handleNewChatCreated"
-        />
-        
-        <TripManagement v-if="activeTab === 'management'" />
+      <!-- 完整聊天页 -->
+      <TripGenerator 
+        v-else-if="activeTab === 'generator'" 
+        :currentChatId="activeChatId"
+        :chatHistory="chatHistory"
+        :initialUserInput="initialUserInput"
+        :initialTripParams="initialTripParams"
+        @chat-updated="handleChatUpdate"
+        @new-chat-created="handleNewChatCreated"
+      />
+      
+      <TripManagement v-if="activeTab === 'management'" />
     </main>
   </div>
 </template>
@@ -198,6 +198,7 @@ import { ref, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import TripGenerator from '../components/TripGenerator.vue';
 import TripManagement from '../components/TripManager.vue';
+import InitialInput from '../components/InitialInput.vue';
 import router from '../router';
 
 const isLoggedIn = ref(false);
@@ -210,13 +211,98 @@ const expandedCategories = ref({
   week: false,
   month: false
 });
-const isFirstChat = ref(true);
-// 修改状态变量
 const showInitialInput = ref(true);
 const initialUserInput = ref('');
 const initialTripParams = ref({});
 
-// 修改 startNewChat 方法
+// 模拟数据 - 30天内的聊天记录
+const mockChatHistory = {
+  'chat_1': {
+    id: 'chat_1',
+    title: '日本东京5日游',
+    startTime: new Date().toISOString(),
+    messages: [
+      { role: 'user', content: '我想去日本东京旅游5天，预算1万元', timestamp: new Date().toISOString() },
+      { role: 'assistant', content: '好的，为您规划东京5日游...', timestamp: new Date().toISOString() }
+    ]
+  },
+  'chat_2': {
+    id: 'chat_2',
+    title: '京都文化之旅',
+    startTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2天前
+    messages: [
+      { role: 'user', content: '我想去京都体验传统文化', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+      { role: 'assistant', content: '京都文化之旅规划中...', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() }
+    ]
+  },
+  'chat_3': {
+    id: 'chat_3',
+    title: '大阪美食探索',
+    startTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5天前
+    messages: [
+      { role: 'user', content: '想去大阪吃美食，有什么推荐？', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+      { role: 'assistant', content: '大阪美食之旅规划...', timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() }
+    ]
+  },
+  'chat_4': {
+    id: 'chat_4',
+    title: '北海道冬季之旅',
+    startTime: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10天前
+    messages: [
+      { role: 'user', content: '冬季想去北海道看雪', timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+      { role: 'assistant', content: '北海道冬季旅行规划...', timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() }
+    ]
+  },
+  'chat_5': {
+    id: 'chat_5',
+    title: '冲绳海岛度假',
+    startTime: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15天前
+    messages: [
+      { role: 'user', content: '想去冲绳度假，有什么好玩的？', timestamp: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() },
+      { role: 'assistant', content: '冲绳海岛度假规划...', timestamp: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() }
+    ]
+  },
+  'chat_6': {
+    id: 'chat_6',
+    title: '名古屋商务旅行',
+    startTime: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(), // 25天前
+    messages: [
+      { role: 'user', content: '要去名古屋出差，顺便旅游', timestamp: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
+      { role: 'assistant', content: '名古屋商务旅行规划...', timestamp: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() }
+    ]
+  }
+};
+
+// 处理开始聊天
+const handleStartChat = (data) => {
+  const { input, params } = data;
+  
+  // 保存初始输入和参数
+  initialUserInput.value = input;
+  initialTripParams.value = params;
+  
+  // 生成新的聊天ID
+  const newChatId = generateChatId();
+  activeChatId.value = newChatId;
+  
+  // 创建新的聊天记录
+  const newChat = {
+    id: newChatId,
+    title: input.substring(0, 20) + (input.length > 20 ? '...' : ''),
+    startTime: new Date().toISOString(),
+    messages: []
+  };
+  
+  chatHistory.value[newChatId] = newChat;
+  saveChatHistory();
+  
+  // 切换到TripGenerator组件
+  showInitialInput.value = false;
+  
+  ElMessage.success('开始规划您的旅行！');
+};
+
+// 新建对话
 const startNewChat = () => {
   showInitialInput.value = true;
   activeChatId.value = null;
@@ -225,64 +311,73 @@ const startNewChat = () => {
   ElMessage.success('已开始新对话');
 };
 
-
 // 从本地存储加载聊天历史
 const loadChatHistory = async () => {
   const userId = localStorage.getItem('userId');
   if (!userId) {
     console.warn('未找到 userId，无法加载对话历史');
+    // 使用模拟数据
+    chatHistory.value = mockChatHistory;
     return;
   }
   try {
-    const res = await conversationApi.getConversationsByUserId(Number(userId));
-    if (res.success && Array.isArray(res.data)) {
-      const historyMap = {};
-      let firstChatId = null;
-      for (const conv of res.data) {
-        // 每个 Conversation 需要获取其消息列表来生成 title 和 startTime
-        try {
-          const msgRes = await conversationApi.getMessagesByConversationId(conv.id);
-          const messages = msgRes.success ? msgRes.data : [];
+    // 这里应该是真实的API调用，暂时注释掉使用模拟数据
+    // const res = await conversationApi.getConversationsByUserId(Number(userId));
+    // if (res.success && Array.isArray(res.data)) {
+    //   const historyMap = {};
+    //   let firstChatId = null;
+    //   for (const conv of res.data) {
+    //     // 每个 Conversation 需要获取其消息列表来生成 title 和 startTime
+    //     try {
+    //       const msgRes = await conversationApi.getMessagesByConversationId(conv.id);
+    //       const messages = msgRes.success ? msgRes.data : [];
 
-          // 提取第一条用户消息作为标题（或默认标题）
-          const firstUserMsg = messages.find(m => m.role === 'user');
-          const title = firstUserMsg?.content?.substring(0, 20) || '未命名对话';
+    //       // 提取第一条用户消息作为标题（或默认标题）
+    //       const firstUserMsg = messages.find(m => m.role === 'user');
+    //       const title = firstUserMsg?.content?.substring(0, 20) || '未命名对话';
 
-          // startTime 使用第一条消息的时间
-          const startTime = messages.length > 0 
-            ? messages[0].timestamp 
-            : conv.timestamp || new Date().toISOString();
+    //       // startTime 使用第一条消息的时间
+    //       const startTime = messages.length > 0 
+    //         ? messages[0].timestamp 
+    //         : conv.timestamp || new Date().toISOString();
 
-          historyMap[conv.id] = {
-            id: String(conv.id),
-            title,
-            startTime,
-            messages: messages.map(msg => ({
-              ...msg,
-              id: String(msg.id),
-              conversationId: String(msg.conversationId)
-            }))
-          };
+    //       historyMap[conv.id] = {
+    //         id: String(conv.id),
+    //         title,
+    //         startTime,
+    //         messages: messages.map(msg => ({
+    //           ...msg,
+    //           id: String(msg.id),
+    //           conversationId: String(msg.conversationId)
+    //         }))
+    //       };
 
-          if (!firstChatId) firstChatId = String(conv.id);
-        } catch (err) {
-          console.error(`加载对话 ${conv.id} 的消息失败:`, err);
-        }
-      }
+    //       if (!firstChatId) firstChatId = String(conv.id);
+    //     } catch (err) {
+    //       console.error(`加载对话 ${conv.id} 的消息失败:`, err);
+    //     }
+    //   }
 
-      chatHistory.value = historyMap;
-      if (firstChatId && !activeChatId.value) {
-        activeChatId.value = firstChatId;
-      }
+    //   chatHistory.value = historyMap;
+    //   if (firstChatId && !activeChatId.value) {
+    //     activeChatId.value = firstChatId;
+    //     showInitialInput.value = false;
+    //   }
 
-      saveChatHistory(); // 可选：缓存到 localStorage 用于离线展示（谨慎使用）
-    } else {
-      ElMessage.warning('未获取到历史对话');
-      chatHistory.value = {};
-    }
+    //   saveChatHistory();
+    // } else {
+    //   ElMessage.warning('未获取到历史对话');
+    //   chatHistory.value = {};
+    // }
+    
+    // 暂时使用模拟数据
+    chatHistory.value = mockChatHistory;
+    
   } catch (error) {
     console.error('加载对话历史失败:', error);
     ElMessage.error('加载历史记录失败，请稍后重试');
+    // 使用模拟数据作为fallback
+    chatHistory.value = mockChatHistory;
   }
 };
 
@@ -296,11 +391,11 @@ const generateChatId = () => {
   return 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 };
 
-
 // 加载聊天
 const loadChat = (chatId) => {
   if (chatHistory.value[chatId]) {
     activeChatId.value = chatId;
+    showInitialInput.value = false;
   }
 };
 
@@ -334,6 +429,7 @@ const deleteChat = (chatId) => {
       const remainingChats = Object.keys(chatHistory.value).filter(id => id !== chatId);
       if (remainingChats.length > 0) {
         activeChatId.value = remainingChats[0];
+        showInitialInput.value = false;
       } else {
         // 如果没有其他聊天，创建一个新的
         startNewChat();
@@ -437,16 +533,18 @@ onMounted(async () => {
   isLoggedIn.value = loggedIn;
   if (loggedIn) {
     username.value = localStorage.getItem('username') || '用户';
-    await loadChatHistory();
-  } else {
-    // 未登录时仍可使用本地 mock（或禁用历史）
-    chatHistory.value = mockChatHistory;
-    activeChatId.value = 'chat_1';
   }
+  await loadChatHistory();
 });
 
 const switchTab = (tab) => {
   activeTab.value = tab;
+  if (tab === 'generator') {
+    // 如果切换到生成器但没有活跃聊天，显示初始输入
+    if (!activeChatId.value || !chatHistory.value[activeChatId.value]) {
+      showInitialInput.value = true;
+    }
+  }
 };
 
 const handleUserCommand = (command) => {

@@ -242,7 +242,7 @@ const stopVoiceInput = async () => {
 
 /* 标题放大 + 逐字动画 */
 .animated-title {
-  font-size: 2.2rem;
+  font-size: 2.9rem;
   color: #0d9488;
   margin-bottom: 0.6rem;
   font-weight: 700;
