@@ -132,7 +132,7 @@
     <!-- 参数设置和输入区域 -->
     <div class="input-area">
       <div class="input-container">
-        <!-- 参数设置区域 -->
+        <!-- 参数设置区域 - 与InitialInput保持一致 -->
         <div class="params-section">
           <div class="params-grid">
             <div class="param-group">
@@ -141,7 +141,6 @@
                 v-model="tripParams.destination"
                 placeholder="例如：日本"
                 size="small"
-                class="compact-input"
               />
             </div>
             
@@ -153,7 +152,6 @@
                 :max="30"
                 size="small"
                 controls-position="right"
-                class="compact-input"
               />
             </div>
             
@@ -166,7 +164,6 @@
                 :step="1000"
                 size="small"
                 controls-position="right"
-                class="compact-input"
               />
             </div>
             
@@ -178,8 +175,51 @@
                 :max="10"
                 size="small"
                 controls-position="right"
-                class="compact-input"
               />
+            </div>
+            
+            <div class="param-group">
+              <label>出发时间</label>
+              <el-date-picker
+                v-model="tripParams.departureDate"
+                type="date"
+                placeholder="选择日期"
+                size="small"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </div>
+            
+            <div class="param-group">
+              <label>交通方式</label>
+              <el-select
+                v-model="tripParams.transport"
+                placeholder="请选择"
+                size="small"
+                style="width: 100%"
+              >
+                <el-option label="飞机" value="飞机" />
+                <el-option label="高铁/火车" value="高铁/火车" />
+                <el-option label="自驾" value="自驾" />
+                <el-option label="无偏好" value="无偏好" />
+              </el-select>
+            </div>
+            
+            <div class="param-group">
+              <label>住宿偏好</label>
+              <el-select
+                v-model="tripParams.accommodation"
+                placeholder="请选择"
+                size="small"
+                style="width: 100%"
+              >
+                <el-option label="经济型酒店" value="经济型酒店" />
+                <el-option label="精品民宿" value="精品民宿" />
+                <el-option label="高端酒店" value="高端酒店" />
+                <el-option label="青旅/客栈" value="青旅/客栈" />
+                <el-option label="无偏好" value="无偏好" />
+              </el-select>
             </div>
             
             <div class="param-group">
@@ -189,7 +229,7 @@
                 multiple
                 placeholder="选择偏好"
                 size="small"
-                class="compact-input"
+                style="width: 100%"
               >
                 <el-option label="美食" value="美食" />
                 <el-option label="购物" value="购物" />
@@ -264,38 +304,96 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, defineProps } from 'vue';
 import { ElMessage } from 'element-plus';
 import {useXfAsr} from "../utils/xunfeiUtil";
 import TripMap from './TripMap.vue';
+
+// 接收父组件传递的参数
+const props = defineProps({
+  currentChatId: {
+    type: [String, Number],
+    default: null
+  },
+  chatHistory: {
+    type: Array,
+    default: () => []
+  },
+  initialUserInput: {
+    type: String,
+    default: ''
+  },
+  initialTripParams: {
+    type: Object,
+    default: () => ({
+      destination: '',
+      duration: null,
+      budget: null,
+      people: null,
+      departureDate: null,
+      transport: null,
+      accommodation: null,
+      preferences: []
+    })
+  }
+});
+
 const { startRecognition, stopRecognition, resultText } = useXfAsr();
+
 // 对话相关
 const currentInput = ref('');
 const chatMessages = ref([]);
 const isGenerating = ref(false);
 const chatHistoryRef = ref(null);
 
-
 // 语音识别相关
 const isRecording = ref(false);
+
 // 用户头像
 const userAvatar = ref('https://cdn-icons-png.flaticon.com/512/149/149071.png');
 
-// 旅行参数 - 初始化为空
+// 旅行参数 - 与InitialInput保持一致
 const tripParams = ref({
   destination: '',
   duration: null,
   budget: null,
   people: null,
-  preferences: [],
-  departureDate: null
+  departureDate: null,
+  transport: null,
+  accommodation: null,
+  preferences: []
 });
 
-// 初始化欢迎消息和语音识别
+// 初始化组件
 onMounted(() => {
-  
-});
+  console.log('=== TripGenerator 接收到的参数 ===');
+  console.log('currentChatId:', props.currentChatId);
+  console.log('initialUserInput:', props.initialUserInput);
+  console.log('initialTripParams:', props.initialTripParams);
+  console.log('chatHistory:', props.chatHistory);
+  console.log('==============================');
 
+  // 如果有初始参数，应用到组件中
+  if (props.initialTripParams) {
+    tripParams.value = {
+      ...tripParams.value,
+      ...props.initialTripParams
+    };
+  }
+
+  // 如果有初始用户输入，填充到输入框
+  if (props.initialUserInput) {
+    currentInput.value = props.initialUserInput;
+  }
+
+  // 如果有聊天历史，恢复对话
+  if (props.chatHistory && props.chatHistory.length > 0) {
+    chatMessages.value = [...props.chatHistory];
+  } else {
+    // 否则显示欢迎消息
+    addAIMessage('您好！我是AI旅行助手，请告诉我您的旅行需求，或者使用上方的参数设置来规划您的行程。');
+  }
+});
 
 // 监听消息变化，自动滚动到底部
 watch(chatMessages, () => {
@@ -326,20 +424,20 @@ const addAIMessage = (content, type = 'text', plan = null) => {
   });
 };
 
-// 应用参数到输入框
+// 应用参数到输入框 - 更新为与InitialInput一致
 const applyParams = () => {
-  const params = tripParams.value;
-  if (!params.destination) {
+  const p = tripParams.value;
+  if (!p.destination) {
     ElMessage.warning('请先填写目的地');
     return;
   }
   
-  const prefs = params.preferences.length > 0 ? params.preferences.join('、') : '暂无偏好';
-  const duration = params.duration ? `${params.duration}天` : '未设置天数';
-  const budget = params.budget ? `${params.budget}元` : '未设置预算';
-  const people = params.people ? `${params.people}人` : '未设置人数';
-  
-  currentInput.value = `我想去${params.destination}，${duration}，预算${budget}，${people}同行，喜欢${prefs}`;
+  const prefs = p.preferences.length ? p.preferences.join('、') : '无特别偏好';
+  const dateStr = p.departureDate ? `，${p.departureDate}出发` : '';
+  const transStr = p.transport ? `，交通方式：${p.transport}` : '';
+  const accoStr = p.accommodation ? `，住宿偏好：${p.accommodation}` : '';
+
+  currentInput.value = `我想去${p.destination}，${p.duration ? p.duration + '天' : '几天'}，预算${p.budget ? p.budget + '元' : '不限'}，${p.people ? p.people + '人' : '独自'}出行${dateStr}${transStr}${accoStr}，偏好${prefs}。`;
   
   ElMessage.success('参数已应用到输入框');
 };
@@ -351,8 +449,10 @@ const resetParams = () => {
     duration: null,
     budget: null,
     people: null,
-    preferences: [],
-    departureDate: null
+    departureDate: null,
+    transport: null,
+    accommodation: null,
+    preferences: []
   };
   currentInput.value = '';
   ElMessage.info('参数已重置');
@@ -391,7 +491,7 @@ const sendMessage = async () => {
   }
 };
 
-// 简化的行程解析逻辑
+// 简化的行程解析逻辑 - 更新以支持新参数
 const parseTripInput = (input) => {
   // 提取关键信息（简化正则）
   const destinationMatch = input.match(/(日本|京都|东京|大阪|北海道|泰国|曼谷|普吉岛|欧洲|法国|巴黎|意大利|罗马|北京|上海|杭州|成都|云南|三亚)/);
@@ -662,7 +762,7 @@ const savePlan = (plan) => {
   margin: 0 auto;
 }
 
-/* 参数设置区域 */
+/* 参数设置区域 - 与InitialInput保持一致 */
 .params-section {
   margin-bottom: 10px;
   padding-bottom: 10px;
@@ -671,8 +771,8 @@ const savePlan = (plan) => {
 
 .params-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 20px;
 }
 
 .param-group {
@@ -681,14 +781,11 @@ const savePlan = (plan) => {
 }
 
 .param-group label {
-  font-size: 0.7rem;
+  display: block;
+  font-size: 0.75rem;
   color: #64748b;
-  margin-bottom: 3px;
-  font-weight: 500;
-}
-
-.compact-input {
-  width: 100%;
+  margin-bottom: 4px;
+  text-align: left;
 }
 
 /* 输入区域 */

@@ -198,7 +198,6 @@ import {
   Refresh,
   ChatDotRound,
   ChatLineRound,
-  More,
   FolderOpened,
   User,
   SwitchButton
