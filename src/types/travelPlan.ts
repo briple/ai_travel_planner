@@ -1,6 +1,9 @@
 // types/travelPlan.ts
 
 export interface TravelPlanVo {
+  planId: number
+  timestamp: string // ISO 8601
+  status: string
   destination: string
   duration: number
   budget: number

@@ -138,7 +138,7 @@
 import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useXfAsr } from "../utils/xunfeiUtil";
-
+import generatePlanApi from '../api/generatePlanApi';
 const emit = defineEmits(['start-chat']);
 
 // 使用相同的语音识别接口
@@ -193,11 +193,11 @@ const onSend = async () => {
     }
     const res = await conversationApi.createConversation(userId)
     const conversationId = res.data
-    // 2. 触发事件（可选，如果父组件还需要处理）
     emit('start-chat', {
       input: currentInput.value,
       params: { ...tripParams.value },
-      conversationId: conversationId
+      conversationId: conversationId,
+      first: true
     })
   } catch (error) {
     console.error('创建对话失败:', error)

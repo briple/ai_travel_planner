@@ -29,10 +29,10 @@ export const travelPlanApi = {
   },
 
   /**
-   * 更新旅行计划
+   * 更新旅行计划状态
    */
-  async updateTravelPlan(dto: TravelPlanUpdateDto): Promise<ApiResponse<TravelPlanVo>> {
-    return http.post(`${PLAN_PREFIX}/update`, dto)
+  async updateTravelPlanStatus(planId: number, status: string): Promise<ApiResponse<string>> {
+    return http.post(`${PLAN_PREFIX}/update/status?planId=${planId}&status=${status}`)
   },
 
   /**

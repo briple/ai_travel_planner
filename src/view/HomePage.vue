@@ -393,6 +393,9 @@ onMounted(async () => {
 
 const switchTab = (tab) => {
   activeTab.value = tab;
+  if(tab === 'management') {
+    showInitialInput.value = false;
+  }
   if (tab === 'generator') {
     // 如果切换到生成器但没有活跃聊天，显示初始输入
     if (!activeChatId.value || !chatHistory.value[activeChatId.value]) {

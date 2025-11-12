@@ -9,14 +9,6 @@
     <div class="actions-bar">
       <div class="left-actions">
         <el-button 
-          type="success" 
-          @click="showAddDialog"
-          class="new-plan-btn"
-        >
-          <ElIcon><Plus /></ElIcon>
-          新建计划
-        </el-button>
-        <el-button 
           type="danger" 
           @click="batchDelete"
           :disabled="selectedPlans.length === 0"
@@ -46,19 +38,35 @@
         <div class="plans-grid">
           <div 
             v-for="plan in filteredPlans" 
-            :key="plan.id"
-            :class="['plan-card', { selected: selectedPlans.includes(plan.id) }]"
+            :key="plan.planId"
+            :class="['plan-card', { selected: selectedPlans.includes(plan.planId) }]"
           >
             <div class="plan-card-header">
               <div class="plan-title-section">
-                <h3 class="plan-title">{{ plan.title }}</h3>
-                <el-tag 
-                  :type="getStatusType(plan.status)" 
+                <h3 class="plan-title">{{ plan.destination }}</h3>
+                <!-- 状态选择器 -->
+                <el-select
+                  v-model="plan.status"
+                  :teleported="false"
                   size="small"
-                  class="status-tag"
+                  @change="updatePlanStatus(plan.planId, plan.status)"
+                  class="status-select"
                 >
-                  {{ getStatusText(plan.status) }}
-                </el-tag>
+                  <el-option
+                    v-for="status in statusOptions"
+                    :key="status.value"
+                    :label="status.label"
+                    :value="status.value"
+                    :type="getStatusType(status.value)"
+                  >
+                    <el-tag 
+                      :type="getStatusType(status.value)" 
+                      size="small"
+                    >
+                      {{ status.label }}
+                    </el-tag>
+                  </el-option>
+                </el-select>
               </div>
               <div class="plan-actions">
                 <el-button 
@@ -73,17 +81,8 @@
                 <el-button 
                   circle 
                   size="small"
-                  @click="editPlan(plan)"
-                  class="edit-btn"
-                  title="编辑"
-                >
-                  <ElIcon><Edit /></ElIcon>
-                </el-button>
-                <el-button 
-                  circle 
-                  size="small"
                   type="danger"
-                  @click="deletePlan(plan.id)"
+                  @click="deletePlan(plan.planId)"
                   class="delete-btn"
                   title="删除"
                 >
@@ -91,7 +90,7 @@
                 </el-button>
                 <el-checkbox 
                   v-model="selectedPlans" 
-                  :label="plan.id"
+                  :label="plan.planId"
                   class="select-checkbox"
                 />
               </div>
@@ -132,11 +131,7 @@
               <div class="plan-meta">
                 <span class="create-time">
                   <ElIcon><Timer /></ElIcon>
-                  创建于: {{ formatDate(plan.createdAt) }}
-                </span>
-                <span v-if="plan.updatedAt" class="update-time">
-                  <ElIcon><Refresh /></ElIcon>
-                  更新于: {{ formatDate(plan.updatedAt) }}
+                  创建于: {{ formatDate(plan.timestamp) }}
                 </span>
               </div>
             </div>
@@ -149,99 +144,9 @@
           description="您还没有任何旅行计划，快去生成一个吧！"
           :image-size="200"
         >
-          <template #image>
-            <img src="https://cdn-icons-png.flaticon.com/512/2553/2553975.png" alt="旅行" style="width: 200px; opacity: 0.6;" />
-          </template>
-          <el-button 
-            type="success"
-            @click="showAddDialog"
-            class="generate-btn"
-          >
-            创建新计划
-          </el-button>
         </el-empty>
       </div>
     </div>
-
-    <!-- 添加/编辑计划对话框 -->
-    <el-dialog 
-      :title="isEditing ? '编辑旅行计划' : '新建旅行计划'" 
-      v-model="dialogVisible"
-      width="600px"
-      class="plan-dialog"
-    >
-      <el-form :model="currentPlan" label-width="100px" class="plan-form">
-        <el-form-item label="计划标题">
-          <el-input v-model="currentPlan.title" placeholder="请输入计划标题" />
-        </el-form-item>
-
-        <el-form-item label="目的地">
-          <el-input v-model="currentPlan.destination" placeholder="请输入目的地" />
-        </el-form-item>
-
-        <el-form-item label="出行天数">
-          <el-input-number 
-            v-model="currentPlan.duration" 
-            :min="1" 
-            :max="30" 
-            controls-position="right"
-          />
-        </el-form-item>
-
-        <el-form-item label="预算(元)">
-          <el-input-number 
-            v-model="currentPlan.budget" 
-            :min="1000" 
-            :max="100000" 
-            :step="1000"
-            controls-position="right"
-          />
-        </el-form-item>
-
-        <el-form-item label="出行人数">
-          <el-input-number 
-            v-model="currentPlan.people" 
-            :min="1" 
-            :max="10" 
-            controls-position="right"
-          />
-        </el-form-item>
-
-        <el-form-item label="旅行偏好">
-          <el-select
-            v-model="currentPlan.preferences"
-            multiple
-            placeholder="选择偏好"
-            style="width: 100%"
-          >
-            <el-option label="美食" value="美食" />
-            <el-option label="购物" value="购物" />
-            <el-option label="文化" value="文化" />
-            <el-option label="自然" value="自然" />
-            <el-option label="冒险" value="冒险" />
-            <el-option label="休闲" value="休闲" />
-            <el-option label="亲子" value="亲子" />
-            <el-option label="摄影" value="摄影" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="计划状态">
-          <el-select v-model="currentPlan.status" placeholder="选择状态" style="width: 100%">
-            <el-option label="规划中" value="planning" />
-            <el-option label="进行中" value="ongoing" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="savePlan" :loading="saving">
-          {{ isEditing ? '更新' : '创建' }}
-        </el-button>
-      </template>
-    </el-dialog>
 
     <!-- 查看计划详情对话框 -->
     <el-dialog 
@@ -250,69 +155,9 @@
       width="800px"
       class="plan-detail-dialog"
     >
-      <div v-if="currentPlanDetail" class="plan-detail-container">
-        <div class="plan-detail-header">
-          <h2 class="detail-title">{{ currentPlanDetail.destination }} 旅行计划</h2>
-          <div class="detail-meta">
-            <span><ElIcon><Calendar /></ElIcon> {{ currentPlanDetail.duration }}天</span>
-            <span><ElIcon><Coin /></ElIcon> 预算: {{ formatPrice(currentPlanDetail.budget) }}</span>
-            <span><ElIcon><User /></ElIcon> {{ currentPlanDetail.people }}人同行</span>
-            <span>🎯 {{ currentPlanDetail.preferences }}</span>
-          </div>
-          <div class="detail-actions">
-            <el-button 
-              type="success" 
-              @click="downloadPlan(currentPlanDetail)"
-              class="download-btn"
-              size="small"
-            >
-              <ElIcon><Download /></ElIcon>
-              下载行程
-            </el-button>
-            <el-button 
-              type="primary" 
-              @click="savePlanToCollection(currentPlanDetail)"
-              class="save-btn"
-              size="small"
-            >
-              <ElIcon><FolderOpened /></ElIcon>
-              收藏计划
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 详细行程 -->
-        <div class="day-cards">
-          <div 
-            v-for="day in currentPlanDetail.days" 
-            :key="day.day" 
-            class="day-card"
-          >
-            <div class="day-header">
-              <h3>第 {{ day.day }} 天</h3>
-              <p>{{ day.theme }}</p>
-            </div>
-
-            <div class="activities">
-              <div 
-                v-for="(activity, idx) in day.activities" 
-                :key="idx" 
-                class="activity-item"
-              >
-                <div class="time">{{ activity.time }}</div>
-                <div class="content">
-                  <h4>{{ activity.title }}</h4>
-                  <p class="desc">{{ activity.desc }}</p>
-                  <div class="details">
-                    <span class="type">{{ activity.type }}</span>
-                    <span class="price" v-if="activity.price">¥{{ activity.price }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TripPlanCard 
+        v-if="currentPlanDetail" 
+        :plan="currentPlanDetail"/>
 
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -321,7 +166,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 // 引入图标组件
@@ -340,213 +185,17 @@ import {
   Download,
   FolderOpened
 } from '@element-plus/icons-vue';
+import TravelPlanApi, { travelPlanApi } from '../api/travelPlanApi' // 假设你的 API 文件路径如此
+import type { TravelPlanVo } from '../types/travelPlan'
+
 // 搜索查询
 const searchQuery = ref('');
 
-// 模拟数据 - 包含完整的旅行计划详情
-const mockPlans = [
-  {
-    id: '1',
-    title: '日本东京美食之旅',
-    destination: '日本东京',
-    duration: 5,
-    budget: 10000,
-    people: 2,
-    preferences: ['美食', '购物', '文化'],
-    status: 'completed',
-    createdAt: '2024-01-15',
-    updatedAt: '2024-01-20',
-    // 完整的旅行计划详情
-    planDetails: {
-      destination: "日本东京",
-      duration: 5,
-      budget: 10000,
-      people: "2人",
-      preferences: "美食、文化",
-      days: [
-        {
-          day: 1,
-          theme: "美食探索 - 第1天",
-          activities: [
-            { time: "09:00", title: "早餐体验", desc: "当地特色早餐店", type: "餐饮", price: 80 },
-            { time: "11:00", title: "寿司制作课", desc: "亲手制作正宗寿司", type: "体验", price: 350 },
-            { time: "14:00", title: "拉面街巡礼", desc: "品尝三家名店拉面", type: "餐饮", price: 180 },
-            { time: "18:00", title: "居酒屋晚餐", desc: "本地人推荐居酒屋", type: "餐饮", price: 280 },
-            { time: "20:00", title: "夜市漫步", desc: "体验当地夜生活", type: "休闲", price: 0 }
-          ]
-        },
-        {
-          day: 2,
-          theme: "文化体验 - 第2天",
-          activities: [
-            { time: "09:00", title: "浅草寺参观", desc: "东京最古老寺庙", type: "景点", price: 0 },
-            { time: "11:00", title: "和服体验", desc: "传统和服穿着拍照", type: "体验", price: 300 },
-            { time: "13:00", title: "传统料理午餐", desc: "怀石料理体验", type: "餐饮", price: 400 },
-            { time: "15:00", title: "皇居外苑", desc: "参观天皇居所", type: "景点", price: 0 },
-            { time: "18:00", title: "银座购物", desc: "高端购物区", type: "购物", price: 200 }
-          ]
-        },
-        {
-          day: 3,
-          theme: "动漫圣地巡礼 - 第3天",
-          activities: [
-            { time: "10:00", title: "秋叶原探索", desc: "动漫电器天堂", type: "购物", price: 150 },
-            { time: "12:00", title: "动漫主题餐厅", desc: "角色主题午餐", type: "餐饮", price: 120 },
-            { time: "14:00", title: "动漫博物馆", desc: "动漫历史展览", type: "景点", price: 200 },
-            { time: "16:00", title: "手办商店", desc: "购买限定手办", type: "购物", price: 300 },
-            { time: "19:00", title: "动漫主题晚餐", desc: "女仆咖啡厅体验", type: "餐饮", price: 220 }
-          ]
-        },
-        {
-          day: 4,
-          theme: "自然与购物 - 第4天",
-          activities: [
-            { time: "09:00", title: "上野公园", desc: "东京著名公园", type: "景点", price: 0 },
-            { time: "11:00", title: "上野动物园", desc: "参观熊猫", type: "景点", price: 150 },
-            { time: "13:00", title: "阿美横町午餐", desc: "市场美食", type: "餐饮", price: 100 },
-            { time: "15:00", title: "涩谷购物", desc: "潮流时尚街区", type: "购物", price: 250 },
-            { time: "18:00", title: "新宿晚餐", desc: "歌舞伎町美食", type: "餐饮", price: 180 }
-          ]
-        },
-        {
-          day: 5,
-          theme: "休闲购物 - 第5天",
-          activities: [
-            { time: "10:00", title: "台场海滨公园", desc: "海滨休闲", type: "景点", price: 0 },
-            { time: "12:00", title: "台场购物中心", desc: "大型购物中心", type: "购物", price: 200 },
-            { time: "14:00", title: "彩虹大桥", desc: "东京地标", type: "景点", price: 0 },
-            { time: "16:00", title: "自由活动", desc: "个人兴趣探索", type: "休闲", price: 0 },
-            { time: "19:00", title: "告别晚餐", desc: "特色餐厅", type: "餐饮", price: 350 }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    id: '2',
-    title: '京都传统文化体验',
-    destination: '日本京都',
-    duration: 3,
-    budget: 6000,
-    people: 1,
-    preferences: ['文化', '自然'],
-    status: 'planning',
-    createdAt: '2024-02-01',
-    updatedAt: '2024-02-05',
-    planDetails: {
-      destination: "日本京都",
-      duration: 3,
-      budget: 6000,
-      people: "1人",
-      preferences: "文化、自然",
-      days: [
-        {
-          day: 1,
-          theme: "寺庙巡礼 - 第1天",
-          activities: [
-            { time: "09:00", title: "金阁寺参观", desc: "金色寺庙", type: "景点", price: 100 },
-            { time: "11:00", title: "龙安寺", desc: "枯山水庭院", type: "景点", price: 80 },
-            { time: "13:00", title: "传统素食午餐", desc: "精进料理", type: "餐饮", price: 120 },
-            { time: "15:00", title: "清水寺", desc: "世界文化遗产", type: "景点", price: 150 },
-            { time: "18:00", title: "祇园晚餐", desc: "传统京都料理", type: "餐饮", price: 200 }
-          ]
-        },
-        {
-          day: 2,
-          theme: "和服体验 - 第2天",
-          activities: [
-            { time: "09:00", title: "和服租赁", desc: "选择和服", type: "体验", price: 250 },
-            { time: "11:00", title: "伏见稻荷大社", desc: "千本鸟居", type: "景点", price: 0 },
-            { time: "13:00", title: "茶道体验", desc: "传统日本茶道", type: "体验", price: 180 },
-            { time: "15:00", title: "花见小路", desc: "传统街道漫步", type: "景点", price: 0 },
-            { time: "18:00", title: "怀石料理", desc: "高级京都料理", type: "餐饮", price: 400 }
-          ]
-        },
-        {
-          day: 3,
-          theme: "岚山自然 - 第3天",
-          activities: [
-            { time: "09:00", title: "岚山竹林", desc: "竹林小径", type: "景点", price: 0 },
-            { time: "11:00", title: "渡月桥", desc: "岚山标志性桥梁", type: "景点", price: 0 },
-            { time: "13:00", title: "岚山午餐", desc: "当地特色", type: "餐饮", price: 100 },
-            { time: "15:00", title: "天龙寺", desc: "世界文化遗产", type: "景点", price: 120 },
-            { time: "17:00", title: "返回市区", desc: "结束行程", type: "交通", price: 50 }
-          ]
-        }
-      ]
-    }
-  },
-  {
-    id: '3',
-    title: '大阪亲子游',
-    destination: '日本大阪',
-    duration: 4,
-    budget: 8000,
-    people: 3,
-    preferences: ['亲子', '美食', '休闲'],
-    status: 'ongoing',
-    createdAt: '2024-02-10',
-    updatedAt: '2024-02-15',
-    planDetails: {
-      destination: "日本大阪",
-      duration: 4,
-      budget: 8000,
-      people: "3人",
-      preferences: "亲子、美食、休闲",
-      days: [
-        {
-          day: 1,
-          theme: "大阪城与美食 - 第1天",
-          activities: [
-            { time: "09:00", title: "大阪城公园", desc: "历史城堡", type: "景点", price: 150 },
-            { time: "12:00", title: "大阪烧午餐", desc: "当地特色", type: "餐饮", price: 90 },
-            { time: "14:00", title: "大阪历史博物馆", desc: "了解大阪历史", type: "景点", price: 120 },
-            { time: "17:00", title: "道顿堀", desc: "美食街探索", type: "餐饮", price: 150 },
-            { time: "19:00", title: "心斋桥购物", desc: "购物街区", type: "购物", price: 200 }
-          ]
-        },
-        {
-          day: 2,
-          theme: "环球影城 - 第2天",
-          activities: [
-            { time: "09:00", title: "大阪环球影城", desc: "全天游玩", type: "景点", price: 450 },
-            { time: "13:00", title: "园区午餐", desc: "主题餐厅", type: "餐饮", price: 120 },
-            { time: "18:00", title: "园区晚餐", desc: "特色美食", type: "餐饮", price: 150 },
-            { time: "20:00", title: "夜间游行", desc: "精彩表演", type: "娱乐", price: 0 }
-          ]
-        },
-        {
-          day: 3,
-          theme: "海游馆与购物 - 第3天",
-          activities: [
-            { time: "10:00", title: "大阪海游馆", desc: "世界级水族馆", type: "景点", price: 180 },
-            { time: "13:00", title: "天保山午餐", desc: "海港美食", type: "餐饮", price: 100 },
-            { time: "15:00", title: "天保山摩天轮", desc: "俯瞰大阪港", type: "景点", price: 80 },
-            { time: "17:00", title: "梅田购物", desc: "大型购物中心", type: "购物", price: 250 }
-          ]
-        },
-        {
-          day: 4,
-          theme: "奈良一日游 - 第4天",
-          activities: [
-            { time: "08:00", title: "前往奈良", desc: "电车行程", type: "交通", price: 120 },
-            { time: "09:30", title: "奈良公园", desc: "与鹿互动", type: "景点", price: 0 },
-            { time: "12:00", title: "奈良午餐", desc: "当地特色", type: "餐饮", price: 90 },
-            { time: "14:00", title: "东大寺", desc: "世界最大木建筑", type: "景点", price: 150 },
-            { time: "16:00", title: "返回大阪", desc: "结束行程", type: "交通", price: 120 }
-          ]
-        }
-      ]
-    }
-  }
-];
-
 // 响应式数据
-const plans = ref([]);
+const plans = ref<TravelPlanVo[]>([]);
 const selectedPlans = ref([]);
 const dialogVisible = ref(false);
 const detailDialogVisible = ref(false);
-const isEditing = ref(false);
 const saving = ref(false);
 const currentPlan = ref({
   id: '',
@@ -562,6 +211,14 @@ const currentPlan = ref({
 });
 const currentPlanDetail = ref(null);
 
+// 状态选项
+const statusOptions = ref([
+  { value: 'planning', label: '规划中' },
+  { value: 'ongoing', label: '进行中' },
+  { value: 'completed', label: '已完成' },
+  { value: 'cancelled', label: '已取消' }
+]);
+
 // 计算属性 - 过滤计划
 const filteredPlans = computed(() => {
   if (!searchQuery.value) {
@@ -570,7 +227,7 @@ const filteredPlans = computed(() => {
   
   const query = searchQuery.value.toLowerCase();
   return plans.value.filter(plan => 
-    plan.title.toLowerCase().includes(query) ||
+    plan.destination.toLowerCase().includes(query) ||
     plan.destination.toLowerCase().includes(query) ||
     plan.preferences.some(pref => pref.toLowerCase().includes(query))
   );
@@ -582,125 +239,42 @@ onMounted(() => {
 });
 
 // 加载计划
-const loadPlans = () => {
-  const savedPlans = localStorage.getItem('travelPlans');
-  if (savedPlans) {
-    plans.value = JSON.parse(savedPlans);
-  } else {
-    plans.value = [...mockPlans];
-    saveToLocalStorage();
+const loadPlans = async() => {
+  let res = await travelPlanApi.getSavedTravelPlans(Number(localStorage.getItem('userId')));
+  console.log('获取保存的行程:', res);
+  plans.value = res || [];
+};
+
+// 更新计划状态
+const updatePlanStatus = async (planId: number, status: string) => {
+  try {
+    const response = await travelPlanApi.updateTravelPlanStatus(planId, status);
+    ElMessage.success('状态更新成功');
+    loadPlans();
+  } catch (error) {
+    console.error('更新状态失败:', error);
+    ElMessage.error('状态更新失败，请重试');
   }
-};
-
-// 保存到本地存储
-const saveToLocalStorage = () => {
-  localStorage.setItem('travelPlans', JSON.stringify(plans.value));
-};
-
-// 显示添加对话框
-const showAddDialog = () => {
-  isEditing.value = false;
-  currentPlan.value = {
-    id: '',
-    title: '',
-    destination: '',
-    duration: 5,
-    budget: 5000,
-    people: 2,
-    preferences: [],
-    status: 'planning',
-    createdAt: new Date().toISOString().split('T')[0],
-    updatedAt: ''
-  };
-  dialogVisible.value = true;
-};
-
-// 编辑计划
-const editPlan = (plan) => {
-  isEditing.value = true;
-  currentPlan.value = { ...plan };
-  dialogVisible.value = true;
 };
 
 // 查看计划详情
-const viewPlanDetails = (plan) => {
-  currentPlanDetail.value = plan.planDetails;
+const viewPlanDetails = (plan: TravelPlanVo) => {
+  currentPlanDetail.value = plan;
   detailDialogVisible.value = true;
 };
 
-// 保存计划
-const savePlan = async () => {
-  if (!currentPlan.value.title || !currentPlan.value.destination) {
-    ElMessage.warning('请填写计划标题和目的地');
-    return;
-  }
-
-  saving.value = true;
-  
-  // 模拟保存延迟
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  if (isEditing.value) {
-    // 更新计划
-    const index = plans.value.findIndex(p => p.id === currentPlan.value.id);
-    if (index !== -1) {
-      currentPlan.value.updatedAt = new Date().toISOString().split('T')[0];
-      plans.value[index] = { ...currentPlan.value };
-    }
-    ElMessage.success('计划更新成功');
-  } else {
-    // 添加新计划
-    const newPlan = {
-      ...currentPlan.value,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: '',
-      planDetails: generatePlanDetails(currentPlan.value)
-    };
-    plans.value.unshift(newPlan);
-    ElMessage.success('计划创建成功');
-  }
-  
-  saveToLocalStorage();
-  dialogVisible.value = false;
-  saving.value = false;
-};
-
-// 根据计划生成详情
-const generatePlanDetails = (plan) => {
-  // 这里可以根据计划信息生成相应的旅行计划详情
-  // 简化实现，返回一个基本结构
-  return {
-    destination: plan.destination,
-    duration: plan.duration,
-    budget: plan.budget,
-    people: plan.people + '人',
-    preferences: plan.preferences.join('、'),
-    days: Array.from({ length: plan.duration }, (_, i) => ({
-      day: i + 1,
-      theme: `${plan.preferences[0] || '综合'}体验 - 第${i + 1}天`,
-      activities: [
-        { time: "09:00", title: "早餐", desc: "酒店早餐", type: "餐饮", price: 80 },
-        { time: "11:00", title: "景点参观", desc: "主要景点游览", type: "景点", price: 150 },
-        { time: "13:00", title: "午餐", desc: "当地特色餐厅", type: "餐饮", price: 100 },
-        { time: "15:00", title: "自由活动", desc: "根据兴趣选择", type: "休闲", price: 0 },
-        { time: "18:00", title: "晚餐", desc: "推荐餐厅用餐", type: "餐饮", price: 150 }
-      ]
-    }))
-  };
-};
-
 // 删除计划
-const deletePlan = (id) => {
+const deletePlan = async(planId: number) => {
   ElMessageBox.confirm('确定要删除这个旅行计划吗？', '删除确认', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning',
   }).then(() => {
-    plans.value = plans.value.filter(plan => plan.id !== id);
-    selectedPlans.value = selectedPlans.value.filter(selectedId => selectedId !== id);
-    saveToLocalStorage();
-    ElMessage.success('计划删除成功');
+    travelPlanApi.deleteTravelPlan(planId)
+    .then(res => {
+       ElMessage.success('计划删除成功');
+       loadPlans();
+    })
   }).catch(() => {
     // 取消删除
   });
@@ -718,54 +292,18 @@ const batchDelete = () => {
     cancelButtonText: '取消',
     type: 'warning',
   }).then(() => {
-    plans.value = plans.value.filter(plan => !selectedPlans.value.includes(plan.id));
-    selectedPlans.value = [];
-    saveToLocalStorage();
-    ElMessage.success(`成功删除 ${selectedPlans.value.length} 个计划`);
+    selectedPlans.value.forEach(async(planId) => {
+      await travelPlanApi.deleteTravelPlan(planId);
+      await loadPlans();
+      selectedPlans.value = [];
+    });
   }).catch(() => {
     // 取消删除
   });
 };
 
-// 下载计划
-const downloadPlan = (plan) => {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plan, null, 2));
-  const downloadAnchorNode = document.createElement('a');
-  downloadAnchorNode.setAttribute("href", dataStr);
-  downloadAnchorNode.setAttribute("download", `${plan.destination}-旅行计划-${new Date().toISOString().split('T')[0]}.json`);
-  document.body.appendChild(downloadAnchorNode);
-  downloadAnchorNode.click();
-  downloadAnchorNode.remove();
-  ElMessage.success('行程已下载为JSON文件');
-};
-
-// 收藏计划
-const savePlanToCollection = (plan) => {
-  try {
-    // 获取已收藏的行程列表
-    const savedCollections = JSON.parse(localStorage.getItem('planCollections') || '[]');
-    
-    // 添加新收藏
-    const newCollection = {
-      id: Date.now().toString(),
-      ...plan,
-      collectedAt: new Date().toISOString()
-    };
-    
-    savedCollections.push(newCollection);
-    
-    // 保存回本地存储
-    localStorage.setItem('planCollections', JSON.stringify(savedCollections));
-    
-    ElMessage.success('计划已收藏');
-  } catch (error) {
-    ElMessage.error('收藏失败，请重试');
-    console.error('收藏失败:', error);
-  }
-};
-
 // 获取状态类型
-const getStatusType = (status) => {
+const getStatusType = (status: string) => {
   const types = {
     planning: 'info',
     ongoing: 'success',
@@ -776,25 +314,25 @@ const getStatusType = (status) => {
 };
 
 // 获取状态文本
-const getStatusText = (status) => {
+const getStatusText = (status: string) => {
   const texts = {
-    planning: '规划中',
-    ongoing: '进行中',
-    completed: '已完成',
-    cancelled: '已取消'
+    'planning': '规划中',
+    'ongoing': '进行中',
+    'completed': '已完成',
+    'cancelled': '已取消'
   };
   return texts[status] || '未知';
 };
 
 // 格式化日期
-const formatDate = (dateString) => {
+const formatDate = (dateString: string) => {
   if (!dateString) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('zh-CN');
 };
 
 // 格式化价格
-const formatPrice = (price) => {
+const formatPrice = (price: number) => {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(price);
 };
 </script>
@@ -901,18 +439,33 @@ const formatPrice = (price) => {
 .plan-title-section {
   flex: 1;
   margin-right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .plan-title {
   font-size: 1.2rem;
   font-weight: 600;
   color: #0d9488;
-  margin: 0 0 0.5rem 0;
+  margin: 0;
   line-height: 1.3;
 }
 
-.status-tag {
-  font-size: 0.7rem;
+/* 状态选择器样式 */
+.status-select {
+  width: 120px;
+  border:none
+}
+
+.status-select :deep(.el-select__tags) {
+  display: none;
+}
+
+.status-select :deep(.el-tag) {
+  border: none;
+  background: transparent;
+  padding: 0;
 }
 
 .plan-actions {
@@ -1032,6 +585,7 @@ const formatPrice = (price) => {
 /* 计划详情对话框样式 */
 .plan-detail-dialog {
   border-radius: 12px;
+  margin-top: -200px;
 }
 
 .plan-detail-container {
