@@ -34,88 +34,91 @@
         
         <!-- 历史记录子菜单 -->
         <div v-if="activeTab === 'generator'" class="history-submenu">
-          <div class="submenu-header">
-            <span>历史记录</span>
-            <el-icon class="refresh-icon" @click="refreshHistory" title="刷新"><Refresh /></el-icon>
-          </div>
-          
-          <!-- 今天 -->
-          <div class="history-category-section">
-            <div class="category-header" @click="toggleCategory('today')">
-              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.today }"><ArrowDown /></el-icon>
-              <span class="category-title">今天</span>
-              <span class="category-count">{{ todayChats.length }}</span>
+          <!-- 历史记录滚动容器 -->
+          <div class="history-scroll-container">
+            <div class="submenu-header">
+              <span>历史记录</span>
+              <el-icon class="refresh-icon" @click="refreshHistory" title="刷新"><Refresh /></el-icon>
             </div>
-            <div v-show="expandedCategories.today" class="category-content">
-              <div 
-                v-for="chat in todayChats" 
-                :key="chat.id"
-                :class="['history-item', { active: activeChatId === chat.id }]"
-                @click="loadChat(chat.id)"
-              >
-                <el-icon><ChatDotRound /></el-icon>
-                <div class="chat-info">
-                  <span class="chat-title">{{ chat.title }}</span>
-                  <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+            
+            <!-- 今天 -->
+            <div class="history-category-section">
+              <div class="category-header" @click="toggleCategory('today')">
+                <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.today }"><ArrowDown /></el-icon>
+                <span class="category-title">今天</span>
+                <span class="category-count">{{ todayChats.length }}</span>
+              </div>
+              <div v-show="expandedCategories.today" class="category-content">
+                <div 
+                  v-for="chat in todayChats" 
+                  :key="chat.id"
+                  :class="['history-item', { active: activeChatId === chat.id }]"
+                  @click="loadChat(chat.id)"
+                >
+                  <el-icon><ChatDotRound /></el-icon>
+                  <div class="chat-info">
+                    <span class="chat-title">{{ chat.title }}</span>
+                    <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+                  </div>
+                </div>
+                <div v-if="todayChats.length === 0" class="no-chats">
+                  <el-icon><ChatLineRound /></el-icon>
+                  <p>暂无聊天记录</p>
                 </div>
               </div>
-              <div v-if="todayChats.length === 0" class="no-chats">
-                <el-icon><ChatLineRound /></el-icon>
-                <p>暂无聊天记录</p>
+            </div>
+            
+            <!-- 近7天 -->
+            <div class="history-category-section">
+              <div class="category-header" @click="toggleCategory('week')">
+                <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.week }"><ArrowDown /></el-icon>
+                <span class="category-title">近7天</span>
+                <span class="category-count">{{ weekChats.length }}</span>
               </div>
-            </div>
-          </div>
-          
-          <!-- 近7天 -->
-          <div class="history-category-section">
-            <div class="category-header" @click="toggleCategory('week')">
-              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.week }"><ArrowDown /></el-icon>
-              <span class="category-title">近7天</span>
-              <span class="category-count">{{ weekChats.length }}</span>
-            </div>
-            <div v-show="expandedCategories.week" class="category-content">
-              <div 
-                v-for="chat in weekChats" 
-                :key="chat.id"
-                :class="['history-item', { active: activeChatId === chat.id }]"
-                @click="loadChat(chat.id)"
-              >
-                <el-icon><ChatDotRound /></el-icon>
-                <div class="chat-info">
-                  <span class="chat-title">{{ chat.title }}</span>
-                  <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+              <div v-show="expandedCategories.week" class="category-content">
+                <div 
+                  v-for="chat in weekChats" 
+                  :key="chat.id"
+                  :class="['history-item', { active: activeChatId === chat.id }]"
+                  @click="loadChat(chat.id)"
+                >
+                  <el-icon><ChatDotRound /></el-icon>
+                  <div class="chat-info">
+                    <span class="chat-title">{{ chat.title }}</span>
+                    <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+                  </div>
+                </div>
+                <div v-if="weekChats.length === 0" class="no-chats">
+                  <el-icon><ChatLineRound /></el-icon>
+                  <p>暂无聊天记录</p>
                 </div>
               </div>
-              <div v-if="weekChats.length === 0" class="no-chats">
-                <el-icon><ChatLineRound /></el-icon>
-                <p>暂无聊天记录</p>
+            </div>
+            
+            <!-- 近30天 -->
+            <div class="history-category-section">
+              <div class="category-header" @click="toggleCategory('month')">
+                <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.month }"><ArrowDown /></el-icon>
+                <span class="category-title">近30天</span>
+                <span class="category-count">{{ monthChats.length }}</span>
               </div>
-            </div>
-          </div>
-          
-          <!-- 近30天 -->
-          <div class="history-category-section">
-            <div class="category-header" @click="toggleCategory('month')">
-              <el-icon class="category-arrow" :class="{ rotated: !expandedCategories.month }"><ArrowDown /></el-icon>
-              <span class="category-title">近30天</span>
-              <span class="category-count">{{ monthChats.length }}</span>
-            </div>
-            <div v-show="expandedCategories.month" class="category-content">
-              <div 
-                v-for="chat in monthChats" 
-                :key="chat.id"
-                :class="['history-item', { active: activeChatId === chat.id }]"
-                @click="loadChat(chat.id)"
-              >
-                <el-icon><ChatDotRound /></el-icon>
-                <div class="chat-info">
-                  <span class="chat-title">{{ chat.title }}</span>
-                  <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+              <div v-show="expandedCategories.month" class="category-content">
+                <div 
+                  v-for="chat in monthChats" 
+                  :key="chat.id"
+                  :class="['history-item', { active: activeChatId === chat.id }]"
+                  @click="loadChat(chat.id)"
+                >
+                  <el-icon><ChatDotRound /></el-icon>
+                  <div class="chat-info">
+                    <span class="chat-title">{{ chat.title }}</span>
+                    <span class="chat-time">{{ formatTime(chat.startTime) }}</span>
+                  </div>
                 </div>
-              </div>
-              <div v-if="monthChats.length === 0" class="no-chats">
-                <el-icon><ChatLineRound /></el-icon>
-                <p>暂无聊天记录</p>
+                <div v-if="monthChats.length === 0" class="no-chats">
+                  <el-icon><ChatLineRound /></el-icon>
+                  <p>暂无聊天记录</p>
+                </div>
               </div>
             </div>
           </div>
@@ -434,7 +437,6 @@ const goToLogin = () => {
 };
 </script>
 
-
 <style scoped>
 * {
   margin: 0;
@@ -520,6 +522,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  overflow: hidden;
 }
 
 .nav-item {
@@ -566,8 +569,21 @@ body {
 
 /* 历史记录子菜单 */
 .history-submenu {
+  flex: 1;
   margin: 0.5rem 0 1rem;
   padding: 0 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 历史记录滚动容器 */
+.history-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 320px); /* 减去logo、按钮、nav-item、user-section的高度 */
+  display: flex;
+  flex-direction: column;
 }
 
 .submenu-header {
@@ -580,6 +596,9 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
 }
 
 .refresh-icon {
@@ -744,6 +763,7 @@ body {
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: auto;
+  flex-shrink: 0;
 }
 
 .user-info {
@@ -881,3 +901,6 @@ body {
   }
 }
 </style>
+
+
+

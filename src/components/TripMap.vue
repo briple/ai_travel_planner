@@ -35,6 +35,14 @@
           <el-icon><Delete /></el-icon>
           清除
         </el-button>
+        <el-button 
+          size="small" 
+          @click="toggleDragMode"
+          :type="enableDrag ? 'primary' : ''"
+        >
+          <el-icon><Pointer /></el-icon>
+          {{ enableDrag ? '禁用' : '启用' }}拖拽调整
+        </el-button>
       </div>
     </div>
 
@@ -71,7 +79,7 @@
           </div>
           <div class="location-actions">
             <el-button 
-              size="mini" 
+              size="small" 
               circle 
               @click.stop="focusOnLocation(location, true)"
               title="定位到此处"
@@ -98,6 +106,10 @@
         <p><strong>时间：</strong>{{ currentRouteInfo.duration }}</p>
         <p><strong>交通方式：</strong>{{ currentRouteInfo.transport }}</p>
         <p v-if="currentRouteInfo.cost"><strong>花费：</strong>¥{{ currentRouteInfo.cost }}</p>
+        <p v-if="enableDrag" class="drag-tip">
+          <el-icon><InfoFilled /></el-icon>
+          可拖拽路线上的点调整路径
+        </p>
       </div>
     </div>
   </div>
@@ -111,7 +123,9 @@ import {
   Delete,
   Location,
   Aim,
-  MapLocation
+  MapLocation,
+  Pointer,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import type { TravelPlanVo, Activity } from '../types/travelPlan'
 
@@ -129,9 +143,10 @@ const effectivePlan = ref<TravelPlanVo>(props.plan)
 const selectedDay = ref<number | ''>('')
 const map = ref<any>(null)
 const markers = ref<any[]>([])
-const polylines = ref<any[]>([])
+const dragRoutes = ref<any[]>([]) // 存储DragRoute实例
 const currentRouteInfo = ref<any>(null)
 const currentLocation = ref<any>(null)
+const enableDrag = ref(false) // 拖拽模式开关
 
 // 不同天数的颜色配置
 const dayColors = [
@@ -213,8 +228,14 @@ const initMap = () => {
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${GAODE_KEY}`
     script.onload = () => {
-      createMapInstance()
-      resolve(true)
+      // 加载AMapUI
+      loadAMapUI().then(() => {
+        createMapInstance()
+        resolve(true)
+      }).catch(() => {
+        ElMessage.error('AMapUI加载失败')
+        resolve(false)
+      })
     }
     script.onerror = () => {
       ElMessage.error('地图加载失败，请检查网络连接')
@@ -224,9 +245,38 @@ const initMap = () => {
   })
 }
 
+// 加载AMapUI
+const loadAMapUI = () => {
+  return new Promise((resolve, reject) => {
+    if ((window as any).AMapUI) {
+      resolve(true)
+      return
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://webapi.amap.com/ui/1.1/main.js'
+    script.onload = () => {
+      // 等待AMapUI初始化
+      const checkAMapUI = () => {
+        if ((window as any).AMapUI) {
+          resolve(true)
+        } else {
+          setTimeout(checkAMapUI, 100)
+        }
+      }
+      checkAMapUI()
+    }
+    script.onerror = () => {
+      reject(new Error('AMapUI加载失败'))
+    }
+    document.head.appendChild(script)
+  })
+}
+
 // 创建地图实例
 const createMapInstance = () => {
   const AMap = (window as any).AMap
+  const AMapUI = (window as any).AMapUI
 
   AMap.plugin([
     'AMap.Geocoder',
@@ -255,6 +305,538 @@ const createMapInstance = () => {
   })
 }
 
+// 切换拖拽模式
+const toggleDragMode = () => {
+  enableDrag.value = !enableDrag.value
+  if (enableDrag.value) {
+    ElMessage.success('已启用拖拽调整模式')
+    redrawRoutesWithDrag()
+  } else {
+    ElMessage.info('已禁用拖拽调整模式')
+    redrawRoutes()
+  }
+}
+
+// 使用DragRoute绘制路线（拖拽模式）
+const drawRoutesWithDrag = () => {
+  const AMap = (window as any).AMap
+  const AMapUI = (window as any).AMapUI
+
+  if (!AMapUI) {
+    ElMessage.warning('AMapUI未加载，无法使用拖拽功能')
+    return
+  }
+
+  // 清除之前的路线
+  clearDragRoutes()
+
+  // 按天绘制路线
+  for (let i = 0; i < effectivePlan.value.days.length; i++) {
+    const day = effectivePlan.value.days[i]
+    if (selectedDay.value && day.day !== selectedDay.value) continue
+
+    const dayColor = dayColors[i % dayColors.length]
+    const dayValidLocations = validLocations.value.filter(loc => loc.day === day.day)
+
+    console.log(`📅 第${day.day}天有效地点:`, dayValidLocations.length)
+
+    if (dayValidLocations.length <= 1) {
+      console.log(`⚠️ 第${day.day}天地点数量不足，跳过路线绘制`)
+      continue
+    }
+
+    // 按时间顺序排序
+    const sortedLocations = [...dayValidLocations].sort((a, b) => {
+      return a.time.localeCompare(b.time)
+    })
+
+    console.log(`🔄 第${day.day}天排序后地点:`, sortedLocations.map(l => `${l.title} (${l.time})`))
+
+    // 创建路径点数组
+    const path = sortedLocations.map(location => [location.longitude, location.latitude])
+
+    // 查找对应的交通活动信息
+    const transportActivity = findTransportActivity(day.day, 0, sortedLocations.length - 1)
+    const transportType = transportActivity?.transport || '驾车'
+
+    // 使用DragRoute规划路线
+    createDragRoute(path, transportType, dayColor, sortedLocations, day.day)
+  }
+}
+
+// 创建DragRoute实例
+const createDragRoute = (path: any[], transportType: string, color: string, locations: any[], day: number) => {
+  const AMap = (window as any).AMap
+  const AMapUI = (window as any).AMapUI
+
+  if (!AMapUI) return
+
+  // 根据交通方式选择策略
+  let policy
+  const transport = transportType.toLowerCase()
+  
+  if (transport.includes('地铁') || transport.includes('公交') || transport.includes('巴士') || transport.includes('换乘')) {
+    policy = AMap.TransferPolicy.LEAST_TIME
+  } else if (transport.includes('步行') || transport.includes('走路')) {
+    // DragRoute主要支持驾车，步行使用其他方式
+    drawWalkingRoute(path, color, locations, day)
+    return
+  } else if (transport.includes('骑行') || transport.includes('自行车')) {
+    // DragRoute主要支持驾车，骑行使用其他方式
+    drawRidingRoute(path, color, locations, day)
+    return
+  } else {
+    // 默认使用驾车
+    policy = AMap.DrivingPolicy.LEAST_FEE
+  }
+
+  try {
+    // 创建DragRoute实例
+    const dragRoute = new AMapUI.DragRoute(map.value, path, policy, {
+      startMarkerOptions: {
+        // 自定义起点标记
+        content: createRouteMarkerContent(locations[0], 'start'),
+        offset: new AMap.Pixel(-15, -30)
+      },
+      endMarkerOptions: {
+        // 自定义终点标记
+        content: createRouteMarkerContent(locations[locations.length - 1], 'end'),
+        offset: new AMap.Pixel(-15, -30)
+      },
+      midMarkerOptions: {
+        // 自定义中间点标记
+        content: createRouteMarkerContent(null, 'mid'),
+        offset: new AMap.Pixel(-8, -8)
+      },
+      routeLineOptions: {
+        // 路线样式
+        strokeColor: color,
+        strokeWeight: 6,
+        strokeOpacity: 0.8
+      }
+    })
+
+    // 监听路线规划完成
+    dragRoute.on('complete', (result: any) => {
+      console.log(`✅ DragRoute路线规划完成: ${locations[0].title} → ${locations[locations.length - 1].title}`, result)
+      
+      // 提取路线信息
+      const route = result.routes && result.routes[0]
+      if (route) {
+        const info = extractRouteInfo(route, transportType, locations[0], locations[locations.length - 1])
+        
+        // 点击路线显示信息
+        dragRoute.routeLine.on('click', () => {
+          currentRouteInfo.value = {
+            ...info,
+            start: locations[0].address,
+            end: locations[locations.length - 1].address
+          }
+        })
+      }
+    })
+
+    // 监听路线规划错误
+    dragRoute.on('error', (error: any) => {
+      console.warn(`❌ DragRoute路线规划失败:`, error)
+      // 规划失败时绘制直线
+      drawDirectLine([path[0], path[path.length - 1]], color, locations[0], locations[locations.length - 1], transportType)
+    })
+
+    // 开始路线规划
+    dragRoute.search()
+    
+    // 存储DragRoute实例
+    dragRoutes.value.push(dragRoute)
+
+  } catch (error) {
+    console.error('创建DragRoute失败:', error)
+    // 失败时使用备用方案
+    drawDirectLine([path[0], path[path.length - 1]], color, locations[0], locations[locations.length - 1], transportType)
+  }
+}
+
+// 创建路线标记内容
+const createRouteMarkerContent = (location: any | null, type: 'start' | 'end' | 'mid') => {
+  if (type === 'start') {
+    return `
+      <div class="route-marker start-marker" style="background-color:${location?.color || '#52c41a'};" title="${location?.title || '起点'}">
+        <div class="marker-content">
+          <span class="marker-text">起</span>
+        </div>
+      </div>
+    `
+  } else if (type === 'end') {
+    return `
+      <div class="route-marker end-marker" style="background-color:${location?.color || '#fa541c'};" title="${location?.title || '终点'}">
+        <div class="marker-content">
+          <span class="marker-text">终</span>
+        </div>
+      </div>
+    `
+  } else {
+    return `
+      <div class="route-marker mid-marker" style="background-color:#409eff;" title="途经点">
+        <div class="marker-content">
+          <span class="marker-text">经</span>
+        </div>
+      </div>
+    `
+  }
+}
+
+// 绘制步行路线（备用方案）
+const drawWalkingRoute = (path: any[], color: string, locations: any[], day: number) => {
+  const AMap = (window as any).AMap
+  
+  const walking = new AMap.Walking({
+    map: map.value
+  })
+
+  // 分段绘制步行路线
+  for (let i = 0; i < path.length - 1; i++) {
+    const start = path[i]
+    const end = path[i + 1]
+    
+    walking.search(start, end, (status: string, result: any) => {
+      if (status === 'complete' && result.routes?.[0]) {
+        const route = result.routes[0]
+        const routePath = route.steps.flatMap((step: any) => step.path || [])
+        
+        if (routePath.length > 0) {
+          const polyline = new AMap.Polyline({
+            path: routePath,
+            strokeColor: color,
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+            strokeStyle: 'solid',
+            lineJoin: 'round'
+          })
+
+          const info = extractRouteInfo(route, '步行', locations[i], locations[i + 1])
+          polyline.routeInfo = info
+          
+          polyline.on('click', () => {
+            currentRouteInfo.value = {
+              ...info,
+              start: locations[i].address,
+              end: locations[i + 1].address
+            }
+          })
+
+          map.value.add(polyline)
+        }
+      } else {
+        // 步行规划失败时绘制直线
+        drawDirectLine([start, end], color, locations[i], locations[i + 1], '步行')
+      }
+    })
+  }
+}
+
+// 绘制骑行路线（备用方案）
+const drawRidingRoute = (path: any[], color: string, locations: any[], day: number) => {
+  const AMap = (window as any).AMap
+  
+  const riding = new AMap.Riding({
+    map: map.value
+  })
+
+  // 分段绘制骑行路线
+  for (let i = 0; i < path.length - 1; i++) {
+    const start = path[i]
+    const end = path[i + 1]
+    
+    riding.search(start, end, (status: string, result: any) => {
+      if (status === 'complete' && result.routes?.[0]) {
+        const route = result.routes[0]
+        const routePath = route.steps.flatMap((step: any) => step.path || [])
+        
+        if (routePath.length > 0) {
+          const polyline = new AMap.Polyline({
+            path: routePath,
+            strokeColor: color,
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+            strokeStyle: 'solid',
+            lineJoin: 'round'
+          })
+
+          const info = extractRouteInfo(route, '骑行', locations[i], locations[i + 1])
+          polyline.routeInfo = info
+          
+          polyline.on('click', () => {
+            currentRouteInfo.value = {
+              ...info,
+              start: locations[i].address,
+              end: locations[i + 1].address
+            }
+          })
+
+          map.value.add(polyline)
+        }
+      } else {
+        // 骑行规划失败时绘制直线
+        drawDirectLine([start, end], color, locations[i], locations[i + 1], '骑行')
+      }
+    })
+  }
+}
+
+// 使用传统方式绘制路线（非拖拽模式）
+const drawRoutes = () => {
+  const AMap = (window as any).AMap
+
+  // 按天绘制路线
+  for (let i = 0; i < effectivePlan.value.days.length; i++) {
+    const day = effectivePlan.value.days[i]
+    if (selectedDay.value && day.day !== selectedDay.value) continue
+
+    const dayColor = dayColors[i % dayColors.length]
+    const dayValidLocations = validLocations.value.filter(loc => loc.day === day.day)
+
+    console.log(`📅 第${day.day}天有效地点:`, dayValidLocations.length)
+
+    if (dayValidLocations.length <= 1) {
+      console.log(`⚠️ 第${day.day}天地点数量不足，跳过路线绘制`)
+      continue
+    }
+
+    // 按时间顺序排序
+    const sortedLocations = [...dayValidLocations].sort((a, b) => {
+      return a.time.localeCompare(b.time)
+    })
+
+    // 多点连线
+    for (let j = 0; j < sortedLocations.length - 1; j++) {
+      const currentLoc = sortedLocations[j]
+      const nextLoc = sortedLocations[j + 1]
+      
+      // 查找对应的交通活动信息
+      const transportActivity = findTransportActivity(day.day, currentLoc.index, nextLoc.index)
+      const transportType = transportActivity?.transport || '步行'
+      
+      // 使用高德地图API规划路线
+      planRouteWithAMap(
+        [currentLoc.longitude, currentLoc.latitude],
+        [nextLoc.longitude, nextLoc.latitude],
+        transportType,
+        dayColor,
+        currentLoc,
+        nextLoc,
+        day.day
+      )
+    }
+  }
+}
+
+// 重新绘制路线（根据当前模式）
+const redrawRoutes = () => {
+  if (enableDrag.value) {
+    drawRoutesWithDrag()
+  } else {
+    drawRoutes()
+  }
+}
+
+// 重新绘制拖拽路线
+const redrawRoutesWithDrag = () => {
+  drawRoutesWithDrag()
+}
+
+// 清除DragRoute实例
+const clearDragRoutes = () => {
+  dragRoutes.value.forEach(route => {
+    try {
+      route.destroy()
+    } catch (error) {
+      console.warn('清除DragRoute失败:', error)
+    }
+  })
+  dragRoutes.value = []
+}
+
+// 查找对应的交通活动
+const findTransportActivity = (day: number, fromIndex: number, toIndex: number) => {
+  const dayData = effectivePlan.value.days.find(d => d.day === day)
+  if (!dayData) return null
+  
+  // 查找在 fromIndex 和 toIndex 之间的交通活动
+  for (let i = fromIndex; i < toIndex; i++) {
+    const activity = dayData.activities[i]
+    if (activity.type === '交通' && activity.transport) {
+      return activity
+    }
+  }
+  return null
+}
+
+// 使用传统API规划路线（非拖拽模式）
+const planRouteWithAMap = (
+  start: [number, number], 
+  end: [number, number], 
+  transportType: string,
+  color: string,
+  startLoc: any,
+  endLoc: any,
+  day: number
+) => {
+  const AMap = (window as any).AMap
+
+  let routePlugin: any
+  const transport = transportType.toLowerCase()
+  
+  // 根据交通工具选择不同的路线规划插件
+  if (transport.includes('地铁') || transport.includes('公交') || transport.includes('巴士') || transport.includes('换乘')) {
+    routePlugin = new AMap.Transfer({
+      policy: AMap.TransferPolicy.LEAST_TIME
+    })
+  } else if (transport.includes('步行') || transport.includes('走路')) {
+    routePlugin = new AMap.Walking()
+  } else if (transport.includes('骑行') || transport.includes('自行车')) {
+    routePlugin = new AMap.Riding()
+  } else {
+    // 默认使用驾车
+    routePlugin = new AMap.Driving({
+      policy: AMap.DrivingPolicy.LEAST_TIME
+    })
+  }
+
+  routePlugin.search(start, end, (status: string, result: any) => {
+    if (status === 'complete' && result.routes?.[0]) {
+      const route = result.routes[0]
+      const path = route.steps.flatMap((step: any) => step.path || [])
+      console.log('lalala', route)
+      if (path.length > 0) {
+        // 绘制路线
+        const polyline = new AMap.Polyline({
+          path,
+          strokeColor: color,
+          strokeWeight: 6,
+          strokeOpacity: 0.8,
+          strokeStyle: 'solid',
+          lineJoin: 'round'
+        })
+
+        // 提取路线信息
+        const info = extractRouteInfo(route, transportType, startLoc, endLoc)
+        polyline.routeInfo = info
+        
+        // 点击路线显示信息
+        polyline.on('click', () => {
+          currentRouteInfo.value = {
+            ...info,
+            start: startLoc.address,
+            end: endLoc.address
+          }
+        })
+
+        map.value.add(polyline)
+        console.log(`✅ 绘制${transportType}路线: ${startLoc.title} → ${endLoc.title}`, info)
+      }
+    } else {
+      console.warn(`❌ 路线规划失败: ${startLoc.title} → ${endLoc.title}`, status)
+      // 规划失败时绘制直线
+      drawDirectLine([start, end], color, startLoc, endLoc, transportType)
+    }
+  })
+}
+
+// 绘制直线（备用方案）
+const drawDirectLine = (
+  path: [number, number][], 
+  color: string,
+  startLoc: any,
+  endLoc: any,
+  transportType: string
+) => {
+  const AMap = (window as any).AMap
+
+  const distance = calculateDistance(path[0][1], path[0][0], path[1][1], path[1][0])
+  
+  const polyline = new AMap.Polyline({
+    path,
+    strokeColor: color,
+    strokeWeight: 3,
+    strokeOpacity: 0.6,
+    strokeStyle: 'dashed',
+    lineJoin: 'round'
+  })
+
+  const info = {
+    distance: formatDistance(distance),
+    duration: estimateDuration(distance, transportType),
+    transport: `${transportType} (直线)`,
+    cost: 0
+  }
+
+  polyline.routeInfo = info
+  polyline.on('click', () => {
+    currentRouteInfo.value = {
+      ...info,
+      start: startLoc.address,
+      end: endLoc.address
+    }
+  })
+
+  map.value.add(polyline)
+  console.log(`⚠️ 绘制备用直线: ${startLoc.title} → ${endLoc.title}`, info)
+}
+
+// 计算两点间距离（米）
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLng/2) * Math.sin(dLng/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c
+}
+
+// 预估行程时间
+const estimateDuration = (distance: number, transportType: string): string => {
+  let speed = 1.4
+  
+  if (transportType.includes('地铁') || transportType.includes('公交')) {
+    speed = 5
+  } else if (transportType.includes('驾车') || transportType.includes('出租车')) {
+    speed = 10
+  } else if (transportType.includes('骑行')) {
+    speed = 4
+  }
+  
+  const seconds = distance / speed
+  return formatDuration(seconds)
+}
+
+// 提取路线信息
+const extractRouteInfo = (route: any, transportType: string, startLoc: any, endLoc: any) => {
+  return {
+    distance: formatDistance(route.distance),
+    duration: formatDuration(route.time),
+    transport: transportType,
+    cost: calculateCost(route.distance, transportType)
+  }
+}
+
+// 计算费用
+const calculateCost = (distance: number, transportType: string) => {
+  const transport = transportType.toLowerCase()
+  
+  if (transport.includes('步行') || transport.includes('骑行')) {
+    return 0
+  } else if (transport.includes('公交') || transport.includes('地铁')) {
+    return Math.max(2, Math.ceil(distance / 10000) * 3)
+  } else if (transport.includes('出租车') || transport.includes('打车')) {
+    return Math.max(8, Math.ceil(distance / 1000) * 2.5)
+  } else if (transport.includes('驾车')) {
+    return Math.ceil(distance / 1000) * 0.8
+  }
+  return 0
+}
+
 // 绘制所有标记点
 const drawAllMarkers = () => {
   if (!map.value) return
@@ -270,7 +852,7 @@ const drawAllMarkers = () => {
   })
 
   // 绘制路线
-  drawRoutes()
+  redrawRoutes()
 
   // 设置初始视图
   if (validLocations.value.length > 0) {
@@ -347,241 +929,6 @@ const addMarker = (location: any) => {
   console.log(`📍 添加标记: ${location.title} [${location.longitude}, ${location.latitude}]`)
 }
 
-// 绘制路线
-const drawRoutes = () => {
-  const AMap = (window as any).AMap
-
-  // 按天绘制路线
-  for (let i = 0; i < effectivePlan.value.days.length; i++) {
-    const day = effectivePlan.value.days[i]
-    if (selectedDay.value && day.day !== selectedDay.value) continue
-
-    const dayColor = dayColors[i % dayColors.length]
-    const dayValidLocations = validLocations.value.filter(loc => loc.day === day.day)
-
-    console.log(`📅 第${day.day}天有效地点:`, dayValidLocations.length)
-
-    if (dayValidLocations.length <= 1) {
-      console.log(`⚠️ 第${day.day}天地点数量不足，跳过路线绘制`)
-      continue
-    }
-
-    // 按时间顺序排序
-    const sortedLocations = [...dayValidLocations].sort((a, b) => {
-      return a.time.localeCompare(b.time)
-    })
-
-    console.log(`🔄 第${day.day}天排序后地点:`, sortedLocations.map(l => `${l.title} (${l.time})`))
-
-    // 多点连线
-    for (let j = 0; j < sortedLocations.length - 1; j++) {
-      const currentLoc = sortedLocations[j]
-      const nextLoc = sortedLocations[j + 1]
-      
-      console.log(`🛣️ 绘制路线 ${j+1}: ${currentLoc.title} → ${nextLoc.title}`)
-      
-      // 查找对应的交通活动信息
-      const transportActivity = findTransportActivity(day.day, currentLoc.index, nextLoc.index)
-      const transportType = transportActivity?.transport || '步行'
-      
-      // 使用高德地图API规划路线
-      planRouteWithAMap(
-        [currentLoc.longitude, currentLoc.latitude],
-        [nextLoc.longitude, nextLoc.latitude],
-        transportType,
-        dayColor,
-        currentLoc,
-        nextLoc,
-        day.day
-      )
-    }
-  }
-}
-
-// 查找对应的交通活动
-const findTransportActivity = (day: number, fromIndex: number, toIndex: number) => {
-  const dayData = effectivePlan.value.days.find(d => d.day === day)
-  if (!dayData) return null
-  
-  // 查找在 fromIndex 和 toIndex 之间的交通活动
-  for (let i = fromIndex; i < toIndex; i++) {
-    const activity = dayData.activities[i]
-    if (activity.type === '交通' && activity.transport) {
-      return activity
-    }
-  }
-  return null
-}
-
-// 使用高德地图API规划路线
-const planRouteWithAMap = (
-  start: [number, number], 
-  end: [number, number], 
-  transportType: string,
-  color: string,
-  startLoc: any,
-  endLoc: any,
-  day: number
-) => {
-  const AMap = (window as any).AMap
-
-  let routePlugin: any
-  const transport = transportType.toLowerCase()
-  
-  // 根据交通工具选择不同的路线规划插件
-  if (transport.includes('地铁') || transport.includes('公交') || transport.includes('巴士') || transport.includes('换乘')) {
-    routePlugin = new AMap.Transfer({
-      policy: AMap.TransferPolicy.LEAST_TIME // 最快捷模式
-    })
-  } else if (transport.includes('步行') || transport.includes('走路')) {
-    routePlugin = new AMap.Walking()
-  } else if (transport.includes('骑行') || transport.includes('自行车')) {
-    routePlugin = new AMap.Riding()
-  } else {
-    // 默认使用驾车（包含出租车、自驾等）
-    routePlugin = new AMap.Driving({
-      policy: AMap.DrivingPolicy.LEAST_TIME // 最快捷模式
-    })
-  }
-
-  routePlugin.search(start, end, (status: string, result: any) => {
-    if (status === 'complete' && result.routes?.[0]) {
-      const route = result.routes[0]
-      const path = route.steps.flatMap((step: any) => step.path || [])
-      
-      if (path.length > 0) {
-        // 绘制路线
-        const polyline = new AMap.Polyline({
-          path,
-          strokeColor: color,
-          strokeWeight: 6,
-          strokeOpacity: 0.8,
-          strokeStyle: 'solid',
-          lineJoin: 'round'
-        })
-
-        // 提取路线信息
-        const info = extractRouteInfo(route, transportType, startLoc, endLoc)
-        polyline.routeInfo = info
-        
-        // 点击路线显示信息
-        polyline.on('click', () => {
-          currentRouteInfo.value = {
-            ...info,
-            start: startLoc.address,
-            end: endLoc.address
-          }
-        })
-
-        map.value.add(polyline)
-        polylines.value.push(polyline)
-        console.log(`✅ 绘制${transportType}路线: ${startLoc.title} → ${endLoc.title}`, info)
-      }
-    } else {
-      console.warn(`❌ 路线规划失败: ${startLoc.title} → ${endLoc.title}`, status)
-      // 规划失败时绘制直线
-      drawDirectLine(start, end, color, startLoc, endLoc, transportType)
-    }
-  })
-}
-
-// 绘制直线（备用方案）
-const drawDirectLine = (
-  start: [number, number], 
-  end: [number, number], 
-  color: string,
-  startLoc: any,
-  endLoc: any,
-  transportType: string
-) => {
-  const AMap = (window as any).AMap
-
-  const distance = calculateDistance(start[1], start[0], end[1], end[0])
-  
-  const polyline = new AMap.Polyline({
-    path: [start, end],
-    strokeColor: color,
-    strokeWeight: 3,
-    strokeOpacity: 0.6,
-    strokeStyle: 'dashed', // 虚线表示备用路线
-    lineJoin: 'round'
-  })
-
-  const info = {
-    distance: formatDistance(distance),
-    duration: estimateDuration(distance, transportType),
-    transport: `${transportType} (直线)`,
-    cost: 0
-  }
-
-  polyline.routeInfo = info
-  polyline.on('click', () => {
-    currentRouteInfo.value = {
-      ...info,
-      start: startLoc.address,
-      end: endLoc.address
-    }
-  })
-
-  map.value.add(polyline)
-  polylines.value.push(polyline)
-  console.log(`⚠️ 绘制备用直线: ${startLoc.title} → ${endLoc.title}`, info)
-}
-
-// 计算两点间距离（米）
-const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-  const R = 6371000 // 地球半径（米）
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-          Math.sin(dLng/2) * Math.sin(dLng/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-  return R * c
-}
-
-// 预估行程时间
-const estimateDuration = (distance: number, transportType: string): string => {
-  let speed = 1.4 // 默认步行速度 米/秒
-  
-  if (transportType.includes('地铁') || transportType.includes('公交')) {
-    speed = 5 // 公共交通平均速度
-  } else if (transportType.includes('驾车') || transportType.includes('出租车')) {
-    speed = 10 // 驾车平均速度（考虑城市交通）
-  } else if (transportType.includes('骑行')) {
-    speed = 4 // 骑行速度
-  }
-  
-  const seconds = distance / speed
-  return formatDuration(seconds)
-}
-
-// 提取路线信息
-const extractRouteInfo = (route: any, transportType: string, startLoc: any, endLoc: any) => {
-  return {
-    distance: formatDistance(route.distance),
-    duration: formatDuration(route.time),
-    transport: transportType,
-    cost: calculateCost(route.distance, transportType)
-  }
-}
-
-// 计算费用
-const calculateCost = (distance: number, transportType: string) => {
-  const transport = transportType.toLowerCase()
-  
-  if (transport.includes('步行') || transport.includes('骑行')) {
-    return 0
-  } else if (transport.includes('公交') || transport.includes('地铁')) {
-    return Math.max(2, Math.ceil(distance / 10000) * 3)
-  } else if (transport.includes('出租车') || transport.includes('打车')) {
-    return Math.max(8, Math.ceil(distance / 1000) * 2.5)
-  } else if (transport.includes('驾车')) {
-    return Math.ceil(distance / 1000) * 0.8 // 油费估算
-  }
-  return 0
-}
-
 // 聚焦到指定地点
 const focusOnLocation = (location: any, zoom: boolean = false) => {
   currentLocation.value = location
@@ -616,15 +963,7 @@ const fitViewToAllMarkers = () => {
     bounds.extend(marker.getPosition())
   })
   
-  // 同时包含所有路线
-  polylines.value.forEach(polyline => {
-    const path = polyline.getPath()
-    path.forEach(point => {
-      bounds.extend(point)
-    })
-  })
-  
-  map.value.setBounds(bounds, true, [50, 50, 50, 50]) // 添加边距
+  map.value.setBounds(bounds, true, [50, 50, 50, 50])
 }
 
 const formatDistance = (meters: number) => meters < 1000 ? `${Math.round(meters)}米` : `${(meters / 1000).toFixed(1)}公里`
@@ -649,9 +988,7 @@ const getTypeText = (type: string) => {
 const clearOverlays = () => {
   if (!map.value) return
   markers.value.forEach(m => map.value.remove(m))
-  polylines.value.forEach(p => map.value.remove(p))
-  markers.value = []
-  polylines.value = []
+  clearDragRoutes()
   currentRouteInfo.value = null
   currentLocation.value = null
 }
@@ -659,6 +996,7 @@ const clearOverlays = () => {
 const clearAll = () => {
   clearOverlays()
   selectedDay.value = ''
+  enableDrag.value = false
 }
 
 const onDayFilterChange = () => {
@@ -685,7 +1023,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (map.value) map.value.destroy()
+  if (map.value) {
+    clearDragRoutes()
+    map.value.destroy()
+  }
 })
 </script>
 
@@ -942,6 +1283,19 @@ onUnmounted(() => {
   color: #666;
 }
 
+.drag-tip {
+  color: #e6a23c;
+  background: #fdf6ec;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #f5dab1;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+
 :deep(.custom-marker) {
   width: 40px;
   height: 40px;
@@ -987,6 +1341,39 @@ onUnmounted(() => {
 }
 
 :deep(.marker-icon) {
+  font-size: 12px;
+  line-height: 1;
+}
+
+:deep(.route-marker) {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  font-weight: bold;
+  cursor: move;
+}
+
+:deep(.start-marker) {
+  border-color: #52c41a;
+}
+
+:deep(.end-marker) {
+  border-color: #fa541c;
+}
+
+:deep(.mid-marker) {
+  width: 16px;
+  height: 16px;
+  border-color: #409eff;
+}
+
+:deep(.marker-text) {
   font-size: 12px;
   line-height: 1;
 }

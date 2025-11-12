@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@amap/amap-jsapi-loader": "^1.0.1",
     "@element-plus/icons-vue": "^2.3.2",
+    "@vuemap/vue-amap": "^2.1.17",
     "@vueuse/core": "^13.9.0",
     "axios": "^1.12.2",
     "crypto-js": "^4.2.0",
