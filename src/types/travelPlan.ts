@@ -25,14 +25,22 @@ export interface Activity {
   time: string // "HH:mm"
   title: string
   location: string
+  
+  // 新增经纬度字段
+  latitude: number | null // 纬度，交通活动为 null
+  longitude: number | null // 经度，交通活动为 null
+  
   desc: string
-  type: string // e.g., "餐饮", "景点"
-  fromLocation: string // 对应 @JsonProperty("from_location")
-  to_location: string   // 对应 @JsonProperty("to_location")
+  type: string // e.g., "餐饮", "景点", "交通"
+  
+  // 交通活动特有字段
+  from_location: string   // 对应 @JsonProperty("from_location")
+  to_location: string     // 对应 @JsonProperty("to_location")
   transport: string
   duration_minutes: number | null // 对应 @JsonProperty("duration_minutes")
   price: number
 }
+
 
 // 用于创建/更新请求的 DTO
 export interface TravelPlanCreateDto {

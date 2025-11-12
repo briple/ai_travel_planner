@@ -453,120 +453,13 @@ const sendMessage = async () => {
       conversationId: Number(props.currentChatId),
       userId: Number(localStorage.getItem('userId'))
   }).then(response => {
-   
-      getChatHistory()
+      getChatHistory(Number(props.currentChatId))
   }).finally(() => {
      isGenerating = false
   })
   
 };
 
-// 简化的行程解析逻辑 - 更新以支持新参数
-const parseTripInput = (input) => {
-  // 提取关键信息（简化正则）
-  const destinationMatch = input.match(/(日本|京都|东京|大阪|北海道|泰国|曼谷|普吉岛|欧洲|法国|巴黎|意大利|罗马|北京|上海|杭州|成都|云南|三亚)/);
-  const durationMatch = input.match(/(\d+)天/);
-  const budgetMatch = input.match(/预算(\d+)元/);
-  const peopleMatch = input.match(/(\d+)人/);
-  const preferenceMatch = input.match(/(美食|动漫|文化|购物|自然|寺庙|冒险|休闲|亲子|摄影)/g);
-
-  const destination = destinationMatch ? destinationMatch[1] : (tripParams.value.destination || '日本');
-  const duration = durationMatch ? parseInt(durationMatch[1]) : (tripParams.value.duration || 5);
-  const budget = budgetMatch ? parseInt(budgetMatch[1]) : (tripParams.value.budget || 10000);
-  const people = peopleMatch ? parseInt(peopleMatch[1]) : (tripParams.value.people || 2);
-  const preferences = preferenceMatch ? preferenceMatch.join('、') : (tripParams.value.preferences.join('、') || '综合体验');
-
-  // 根据偏好生成不同行程
-  let days = [];
-  for (let i = 1; i <= duration; i++) {
-    days.push(generateDayPlan(i, preferences, destination));
-  }
-
-  return {
-    destination,
-    duration,
-    budget,
-    people: people + '人',
-    preferences,
-    days
-  };
-};
-
-// 生成每日计划
-const generateDayPlan = (day, preference, destination) => {
-  const themes = {
-    '美食': '美食探索',
-    '动漫': '动漫圣地巡礼',
-    '文化': '传统文化体验',
-    '购物': '购物狂欢',
-    '自然': '自然风光',
-    '寺庙': '寺庙巡礼',
-    '冒险': '冒险体验',
-    '休闲': '休闲度假',
-    '亲子': '亲子活动',
-    '摄影': '摄影之旅'
-  };
-
-  // 获取主要偏好
-  const mainPreference = preference.split('、')[0];
-  const baseTheme = themes[mainPreference] || '综合体验';
-  const theme = `${baseTheme} - 第${day}天`;
-
-  // 根据目的地和偏好生成活动
-  let activities = [];
-  
-  if (destination === '日本' || destination === '东京' || destination === '大阪' || destination === '京都') {
-    if (preference.includes('美食')) {
-      activities = [
-        { time: '09:00', title: '早餐体验', desc: '当地特色早餐店', type: '餐饮', price: 80 },
-        { time: '11:00', title: '寿司制作课', desc: '亲手制作正宗寿司', type: '体验', price: 350 },
-        { time: '14:00', title: '拉面街巡礼', desc: '品尝三家名店拉面', type: '餐饮', price: 180 },
-        { time: '18:00', title: '居酒屋晚餐', desc: '本地人推荐居酒屋', type: '餐饮', price: 280 },
-        { time: '20:00', title: '夜市漫步', desc: '体验当地夜生活', type: '休闲', price: 0 }
-      ];
-    } else if (preference.includes('动漫')) {
-      activities = [
-        { time: '10:00', title: '动漫博物馆', desc: '参观官方博物馆', type: '景点', price: 200 },
-        { time: '13:00', title: '主题咖啡厅', desc: '限定角色主题餐厅', type: '餐饮', price: 150 },
-        { time: '15:00', title: '手办商店巡礼', desc: '秋叶原知名店铺', type: '购物', price: 300 },
-        { time: '18:00', title: '动漫主题晚餐', desc: '女仆咖啡厅体验', type: '餐饮', price: 220 },
-        { time: '20:00', title: 'LIVE HOUSE', desc: '观看动漫歌曲LIVE', type: '娱乐', price: 180 }
-      ];
-    } else {
-      // 综合行程
-      const options = [
-        [
-          { time: '09:00', title: '城市观光', desc: '经典景点游览', type: '景点', price: 150 },
-          { time: '12:00', title: '午餐', desc: '当地特色餐厅', type: '餐饮', price: 100 },
-          { time: '14:00', title: '购物街', desc: '商业区自由活动', type: '购物', price: 200 },
-          { time: '18:00', title: '晚餐', desc: '酒店附近餐厅', type: '餐饮', price: 120 }
-        ],
-        [
-          { time: '10:00', title: '文化体验', desc: '茶道/和服体验', type: '体验', price: 300 },
-          { time: '13:00', title: '传统料理', desc: '怀石料理午餐', type: '餐饮', price: 400 },
-          { time: '15:00', title: '寺庙参观', desc: '著名佛教寺庙', type: '景点', price: 80 },
-          { time: '18:00', title: '晚餐', desc: '日式烧肉', type: '餐饮', price: 180 }
-        ]
-      ];
-      activities = options[(day + 1) % 2];
-    }
-  } else {
-    // 其他目的地
-    activities = [
-      { time: '09:00', title: '酒店早餐', desc: '自助早餐', type: '餐饮', price: 120 },
-      { time: '10:30', title: '主要景点', desc: '城市地标参观', type: '景点', price: 180 },
-      { time: '13:00', title: '午餐', desc: '当地特色美食', type: '餐饮', price: 100 },
-      { time: '15:00', title: '自由活动', desc: '根据兴趣选择', type: '休闲', price: 0 },
-      { time: '18:00', title: '晚餐', desc: '推荐餐厅用餐', type: '餐饮', price: 150 }
-    ];
-  }
-
-  return {
-    day,
-    theme,
-    activities
-  };
-};
 
 // 语音输入功能
 const toggleVoiceInput = async() => {

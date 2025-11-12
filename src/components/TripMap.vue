@@ -23,7 +23,7 @@
       <div class="control-group">
         <el-button 
           size="small" 
-          @click="fitViewToRoute"
+          @click="fitViewToAllMarkers"
         >
           <el-icon><FullScreen /></el-icon>
           适应视图
@@ -45,13 +45,13 @@
     <div class="locations-panel">
       <div class="panel-header">
         <h3><el-icon><Location /></el-icon> 行程地点</h3>
-        <span class="location-count">共 {{ allLocations.length }} 个地点</span>
+        <span class="location-count">共 {{ validLocations.length }} 个地点</span>
       </div>
       
       <div class="locations-list">
         <div 
           v-for="location in filteredLocations" 
-          :key="`${location.day}-${location.index}`"
+          :key="location.id"
           :class="['location-item', { active: currentLocation?.id === location.id }]"
           @click="focusOnLocation(location)"
         >
@@ -62,6 +62,9 @@
             <div class="location-title">
               {{ location.title }}
               <span class="day-tag">第{{ location.day }}天</span>
+              <span class="type-tag">{{ getTypeText(location.type) }}</span>
+              <span v-if="location.isStart" class="start-tag">起点</span>
+              <span v-if="location.isEnd" class="end-tag">终点</span>
             </div>
             <div class="location-address">{{ location.address }}</div>
             <div class="location-time">{{ location.time }}</div>
@@ -115,99 +118,12 @@ import type { TravelPlanVo, Activity } from '../types/travelPlan'
 // 高德地图配置
 const GAODE_KEY = '7a9824f0e428a15cb02a3700f5836063'
 
-// ========== 测试数据：北京2日游 ==========
-const mockPlan: TravelPlanVo = {
-  destination: '北京',
-  duration: 2,
-  budget: 2000,
-  people: 2,
-  preferences: ['历史文化', '美食'],
-  departureDate: '2025-11-15',
-  travelTips: ['早晚温差大，注意保暖', '故宫需提前预约'],
-  days: [
-    {
-      day: 1,
-      date: '2025-11-15',
-      weatherSummary: '晴，10°C~18°C',
-      activities: [
-        {
-          time: '09:00',
-          title: '天安门广场',
-          location: '北京市东城区天安门广场',
-          desc: '观看升旗仪式（如适用）',
-          type: '景点',
-          fromLocation: '',
-          toLocation: '故宫',
-          transport: '步行',
-          durationMinutes: 60,
-          price: 0
-        },
-        {
-          time: '10:30',
-          title: '故宫博物院',
-          location: '北京市东城区景山前街4号',
-          desc: '参观紫禁城',
-          type: '景点',
-          fromLocation: '天安门',
-          toLocation: '王府井',
-          transport: '步行',
-          durationMinutes: 180,
-          price: 60
-        },
-        {
-          time: '14:00',
-          title: '王府井步行街',
-          location: '北京市东城区王府井大街',
-          desc: '午餐与购物',
-          type: '餐饮',
-          fromLocation: '故宫',
-          toLocation: '酒店',
-          transport: '步行',
-          durationMinutes: 120,
-          price: 150
-        }
-      ]
-    },
-    {
-      day: 2,
-      date: '2025-11-16',
-      weatherSummary: '多云，8°C~16°C',
-      activities: [
-        {
-          time: '09:00',
-          title: '颐和园',
-          location: '北京市海淀区新建宫门路19号',
-          desc: '游览皇家园林',
-          type: '景点',
-          fromLocation: '酒店',
-          toLocation: '圆明园',
-          transport: '公交',
-          durationMinutes: 240,
-          price: 30
-        },
-        {
-          time: '14:00',
-          title: '圆明园遗址公园',
-          location: '北京市海淀区清华西路28号',
-          desc: '参观历史遗址',
-          type: '景点',
-          fromLocation: '颐和园',
-          toLocation: '酒店',
-          transport: '公交',
-          durationMinutes: 180,
-          price: 25
-        }
-      ]
-    }
-  ]
-}
-
 // 使用测试数据
 const props = defineProps<{
-  plan?: TravelPlanVo
+  plan : TravelPlanVo
 }>()
 
-const effectivePlan = ref<TravelPlanVo>(mockPlan)
+const effectivePlan = ref<TravelPlanVo>(props.plan)
 
 // 响应式数据
 const selectedDay = ref<number | ''>('')
@@ -224,24 +140,44 @@ const dayColors = [
   '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
 ]
 
-// 计算所有地点
-const allLocations = computed(() => {
+// 活动类型图标映射
+const activityIcons = {
+  '餐饮': '🍽️',
+  '景点': '🏛️',
+  '住宿': '🏨',
+  '交通': '🚗',
+  '购物': '🛍️',
+  '体验': '🎯'
+}
+
+// 计算所有有效地点（有经纬度的非交通活动）
+const validLocations = computed(() => {
   const locations: any[] = []
   effectivePlan.value.days.forEach(day => {
-    day.activities.forEach((activity, index) => {
-      if (activity.location?.trim()) {
-        locations.push({
-          id: `${day.day}-${index}`,
-          day: day.day,
-          index,
-          title: activity.title,
-          address: activity.location,
-          time: activity.time,
-          type: activity.type,
-          color: dayColors[(day.day - 1) % dayColors.length],
-          coordinates: null as [number, number] | null
-        })
-      }
+    const dayActivities = day.activities.filter(activity => 
+      activity.latitude && activity.longitude && activity.type !== '交通'
+    )
+    
+    // 标记起点和终点
+    dayActivities.forEach((activity, index) => {
+      const isStart = index === 0
+      const isEnd = index === dayActivities.length - 1
+      
+      locations.push({
+        id: `${day.day}-${index}`,
+        day: day.day,
+        index,
+        title: activity.title,
+        address: activity.location,
+        time: activity.time,
+        type: activity.type,
+        latitude: activity.latitude,
+        longitude: activity.longitude,
+        color: dayColors[(day.day - 1) % dayColors.length],
+        icon: activityIcons[activity.type as keyof typeof activityIcons] || '📍',
+        isStart,
+        isEnd
+      })
     })
   })
   return locations
@@ -250,10 +186,20 @@ const allLocations = computed(() => {
 // 计算筛选后的地点
 const filteredLocations = computed(() => {
   if (!selectedDay.value) {
-    return allLocations.value
+    return validLocations.value
   }
-  return allLocations.value.filter(loc => loc.day === selectedDay.value)
+  return validLocations.value.filter(loc => loc.day === selectedDay.value)
 })
+
+// 获取第一个有效地点的坐标作为初始中心
+const getInitialCenter = () => {
+  if (validLocations.value.length > 0) {
+    const firstLocation = validLocations.value[0]
+    return [firstLocation.longitude, firstLocation.latitude]
+  }
+  // 默认北京中心
+  return [116.397428, 39.90923]
+}
 
 // 初始化地图
 const initMap = () => {
@@ -289,11 +235,14 @@ const createMapInstance = () => {
     'AMap.Transfer',
     'AMap.Scale',
     'AMap.ToolBar',
-    'AMap.HawkEye'
+    'AMap.HawkEye',
+    'AMap.InfoWindow'
   ], () => {
+    const initialCenter = getInitialCenter()
+    
     map.value = new AMap.Map('trip-map', {
       zoom: 12,
-      center: [116.397428, 39.90923],
+      center: initialCenter,
       viewMode: '3D',
       mapStyle: 'amap://styles/light'
     })
@@ -302,109 +251,104 @@ const createMapInstance = () => {
     map.value.addControl(new AMap.ToolBar())
     map.value.addControl(new AMap.HawkEye())
 
-    console.log('✅ 高德地图及插件加载完成')
+    console.log('✅ 高德地图及插件加载完成，初始中心:', initialCenter)
   })
-}
-
-// 地理编码
-const geocode = async (address: string): Promise<[number, number] | null> => {
-  return new Promise((resolve) => {
-    const AMap = (window as any).AMap
-    const geocoder = new AMap.Geocoder({ city: '全国' })
-    geocoder.getLocation(address, (status: string, result: any) => {
-      if (status === 'complete' && result.geocodes.length > 0) {
-        const loc = result.geocodes[0].location
-        resolve([loc.lng, loc.lat])
-      } else {
-        console.warn('地理编码失败:', address)
-        resolve(null)
-      }
-    })
-  })
-}
-
-// 批量获取坐标并更新地点数据
-const getCoordinatesForPlan = async () => {
-  const coordinatesMap = new Map<string, [number, number]>()
-  console.log('📍 开始地理编码所有活动地点...')
-
-  // 更新所有地点的坐标
-  for (const location of allLocations.value) {
-    const loc = location.address.trim()
-    if (loc && !coordinatesMap.has(loc)) {
-      console.log(`  🔍 编码: "${loc}"`)
-      const coords = await geocode(loc)
-      if (coords) {
-        coordinatesMap.set(loc, coords)
-        // 更新地点的坐标信息
-        const locIndex = allLocations.value.findIndex(l => l.id === location.id)
-        if (locIndex !== -1) {
-          allLocations.value[locIndex].coordinates = coords
-        }
-        console.log(`  ✅ 成功: ${loc} => [${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}]`)
-      } else {
-        console.warn(`  ❌ 失败: "${loc}"`)
-      }
-    }
-  }
-
-  console.log(`✅ 地理编码完成，共获取 ${coordinatesMap.size} 个有效坐标`)
-  return coordinatesMap
 }
 
 // 绘制所有标记点
-const drawAllMarkers = async () => {
+const drawAllMarkers = () => {
   if (!map.value) return
 
   clearOverlays()
-  const coordinatesMap = await getCoordinatesForPlan()
-  const AMap = (window as any).AMap
+  console.log('📍 开始绘制标记点，有效地点数量:', validLocations.value.length)
 
-  // 绘制所有地点的标记
-  allLocations.value.forEach(location => {
+  // 绘制所有有效地点的标记
+  validLocations.value.forEach(location => {
     if (selectedDay.value && location.day !== selectedDay.value) return
     
-    const coords = coordinatesMap.get(location.address)
-    if (coords) {
-      addMarker(coords, location, location.color)
-    }
+    addMarker(location)
   })
 
   // 绘制路线
-  await drawRoutes(coordinatesMap)
+  drawRoutes()
 
   // 设置初始视图
-  if (allLocations.value.length > 0 && coordinatesMap.size > 0) {
+  if (validLocations.value.length > 0) {
     fitViewToAllMarkers()
   }
 }
 
 // 添加标记点
-const addMarker = (coords: [number, number], location: any, color: string) => {
+const addMarker = (location: any) => {
   const AMap = (window as any).AMap
   
+  // 根据是否为起点/终点设置不同的标记样式
+  let markerContent = ''
+  if (location.isStart) {
+    markerContent = `
+      <div class="custom-marker start-marker" style="background-color:${location.color};" title="${location.title}">
+        <div class="marker-content">
+          <span class="marker-day">起</span>
+          <span class="marker-icon">${location.icon}</span>
+        </div>
+      </div>
+    `
+  } else if (location.isEnd) {
+    markerContent = `
+      <div class="custom-marker end-marker" style="background-color:${location.color};" title="${location.title}">
+        <div class="marker-content">
+          <span class="marker-day">终</span>
+          <span class="marker-icon">${location.icon}</span>
+        </div>
+      </div>
+    `
+  } else {
+    markerContent = `
+      <div class="custom-marker" style="background-color:${location.color};" title="${location.title}">
+        <div class="marker-content">
+          <span class="marker-day">${location.day}</span>
+          <span class="marker-icon">${location.icon}</span>
+        </div>
+      </div>
+    `
+  }
+  
   const marker = new AMap.Marker({
-    position: coords,
+    position: [location.longitude, location.latitude],
+    content: markerContent,
+    offset: new AMap.Pixel(-20, -20),
+    title: `${location.title} (第${location.day}天)`
+  })
+
+  // 添加信息窗口
+  const infoWindow = new AMap.InfoWindow({
     content: `
-      <div class="custom-marker" style="background-color:${color};">
-        ${location.day}
+      <div class="location-info-window">
+        <h4>${location.title}</h4>
+        <p><strong>地址：</strong>${location.address}</p>
+        <p><strong>时间：</strong>${location.time}</p>
+        <p><strong>类型：</strong>${location.type}</p>
+        <p><strong>第${location.day}天</strong></p>
+        ${location.isStart ? '<p class="start-badge">🏁 起点</p>' : ''}
+        ${location.isEnd ? '<p class="end-badge">🎯 终点</p>' : ''}
       </div>
     `,
-    offset: new AMap.Pixel(-12, -12),
-    title: location.title
+    offset: new AMap.Pixel(0, -40)
   })
 
   // 点击标记点事件
   marker.on('click', () => {
+    infoWindow.open(map.value, marker.getPosition())
     focusOnLocation(location, true)
   })
 
   map.value.add(marker)
   markers.value.push(marker)
+  console.log(`📍 添加标记: ${location.title} [${location.longitude}, ${location.latitude}]`)
 }
 
 // 绘制路线
-const drawRoutes = async (coordinatesMap: Map<string, [number, number]>) => {
+const drawRoutes = () => {
   const AMap = (window as any).AMap
 
   // 按天绘制路线
@@ -413,91 +357,237 @@ const drawRoutes = async (coordinatesMap: Map<string, [number, number]>) => {
     if (selectedDay.value && day.day !== selectedDay.value) continue
 
     const dayColor = dayColors[i % dayColors.length]
-    const dayActivities = day.activities.filter(act => act.location?.trim())
+    const dayValidLocations = validLocations.value.filter(loc => loc.day === day.day)
 
-    if (dayActivities.length <= 1) continue
+    console.log(`📅 第${day.day}天有效地点:`, dayValidLocations.length)
+
+    if (dayValidLocations.length <= 1) {
+      console.log(`⚠️ 第${day.day}天地点数量不足，跳过路线绘制`)
+      continue
+    }
+
+    // 按时间顺序排序
+    const sortedLocations = [...dayValidLocations].sort((a, b) => {
+      return a.time.localeCompare(b.time)
+    })
+
+    console.log(`🔄 第${day.day}天排序后地点:`, sortedLocations.map(l => `${l.title} (${l.time})`))
 
     // 多点连线
-    for (let j = 0; j < dayActivities.length - 1; j++) {
-      const current = dayActivities[j]
-      const next = dayActivities[j + 1]
-      const startCoords = coordinatesMap.get(current.location!)
-      const endCoords = coordinatesMap.get(next.location!)
-
-      if (startCoords && endCoords) {
-        await drawRouteBetweenPoints(
-          startCoords,
-          endCoords,
-          dayColor,
-          current,
-          next,
-          day.day
-        )
-      }
+    for (let j = 0; j < sortedLocations.length - 1; j++) {
+      const currentLoc = sortedLocations[j]
+      const nextLoc = sortedLocations[j + 1]
+      
+      console.log(`🛣️ 绘制路线 ${j+1}: ${currentLoc.title} → ${nextLoc.title}`)
+      
+      // 查找对应的交通活动信息
+      const transportActivity = findTransportActivity(day.day, currentLoc.index, nextLoc.index)
+      const transportType = transportActivity?.transport || '步行'
+      
+      // 使用高德地图API规划路线
+      planRouteWithAMap(
+        [currentLoc.longitude, currentLoc.latitude],
+        [nextLoc.longitude, nextLoc.latitude],
+        transportType,
+        dayColor,
+        currentLoc,
+        nextLoc,
+        day.day
+      )
     }
   }
 }
 
-// 绘制两点间的路线
-const drawRouteBetweenPoints = (
+// 查找对应的交通活动
+const findTransportActivity = (day: number, fromIndex: number, toIndex: number) => {
+  const dayData = effectivePlan.value.days.find(d => d.day === day)
+  if (!dayData) return null
+  
+  // 查找在 fromIndex 和 toIndex 之间的交通活动
+  for (let i = fromIndex; i < toIndex; i++) {
+    const activity = dayData.activities[i]
+    if (activity.type === '交通' && activity.transport) {
+      return activity
+    }
+  }
+  return null
+}
+
+// 使用高德地图API规划路线
+const planRouteWithAMap = (
+  start: [number, number], 
+  end: [number, number], 
+  transportType: string,
+  color: string,
+  startLoc: any,
+  endLoc: any,
+  day: number
+) => {
+  const AMap = (window as any).AMap
+
+  let routePlugin: any
+  const transport = transportType.toLowerCase()
+  
+  // 根据交通工具选择不同的路线规划插件
+  if (transport.includes('地铁') || transport.includes('公交') || transport.includes('巴士') || transport.includes('换乘')) {
+    routePlugin = new AMap.Transfer({
+      policy: AMap.TransferPolicy.LEAST_TIME // 最快捷模式
+    })
+  } else if (transport.includes('步行') || transport.includes('走路')) {
+    routePlugin = new AMap.Walking()
+  } else if (transport.includes('骑行') || transport.includes('自行车')) {
+    routePlugin = new AMap.Riding()
+  } else {
+    // 默认使用驾车（包含出租车、自驾等）
+    routePlugin = new AMap.Driving({
+      policy: AMap.DrivingPolicy.LEAST_TIME // 最快捷模式
+    })
+  }
+
+  routePlugin.search(start, end, (status: string, result: any) => {
+    if (status === 'complete' && result.routes?.[0]) {
+      const route = result.routes[0]
+      const path = route.steps.flatMap((step: any) => step.path || [])
+      
+      if (path.length > 0) {
+        // 绘制路线
+        const polyline = new AMap.Polyline({
+          path,
+          strokeColor: color,
+          strokeWeight: 6,
+          strokeOpacity: 0.8,
+          strokeStyle: 'solid',
+          lineJoin: 'round'
+        })
+
+        // 提取路线信息
+        const info = extractRouteInfo(route, transportType, startLoc, endLoc)
+        polyline.routeInfo = info
+        
+        // 点击路线显示信息
+        polyline.on('click', () => {
+          currentRouteInfo.value = {
+            ...info,
+            start: startLoc.address,
+            end: endLoc.address
+          }
+        })
+
+        map.value.add(polyline)
+        polylines.value.push(polyline)
+        console.log(`✅ 绘制${transportType}路线: ${startLoc.title} → ${endLoc.title}`, info)
+      }
+    } else {
+      console.warn(`❌ 路线规划失败: ${startLoc.title} → ${endLoc.title}`, status)
+      // 规划失败时绘制直线
+      drawDirectLine(start, end, color, startLoc, endLoc, transportType)
+    }
+  })
+}
+
+// 绘制直线（备用方案）
+const drawDirectLine = (
   start: [number, number], 
   end: [number, number], 
   color: string,
-  startAct: Activity,
-  endAct: Activity,
-  day: number
+  startLoc: any,
+  endLoc: any,
+  transportType: string
 ) => {
-  return new Promise<void>((resolve) => {
-    const AMap = (window as any).AMap
-    const trans = (startAct.transport || '').toLowerCase()
+  const AMap = (window as any).AMap
 
-    let plugin: any
-    if (trans.includes('公交') || trans.includes('地铁') || trans.includes('换乘')) {
-      plugin = new AMap.Transfer()
-    } else if (trans.includes('步行') || trans.includes('走路')) {
-      plugin = new AMap.Walking()
-    } else {
-      plugin = new AMap.Walking()
-    }
-
-    plugin.search(start, end, (status: string, result: any) => {
-      if (status === 'complete' && result.routes?.[0]) {
-        const path = result.routes[0].steps.flatMap((s: any) => s.path || [])
-        if (path.length > 0) {
-          const polyline = new AMap.Polyline({
-            path,
-            strokeColor: color,
-            strokeWeight: 6,
-            strokeOpacity: 0.8
-          })
-
-          const info = extractRouteInfo(result, startAct, endAct)
-          polyline.routeInfo = info
-          polyline.on('click', () => {
-            currentRouteInfo.value = {
-              ...info,
-              start: startAct.location,
-              end: endAct.location
-            }
-          })
-
-          map.value.add(polyline)
-          polylines.value.push(polyline)
-        }
-      }
-      resolve()
-    })
+  const distance = calculateDistance(start[1], start[0], end[1], end[0])
+  
+  const polyline = new AMap.Polyline({
+    path: [start, end],
+    strokeColor: color,
+    strokeWeight: 3,
+    strokeOpacity: 0.6,
+    strokeStyle: 'dashed', // 虚线表示备用路线
+    lineJoin: 'round'
   })
+
+  const info = {
+    distance: formatDistance(distance),
+    duration: estimateDuration(distance, transportType),
+    transport: `${transportType} (直线)`,
+    cost: 0
+  }
+
+  polyline.routeInfo = info
+  polyline.on('click', () => {
+    currentRouteInfo.value = {
+      ...info,
+      start: startLoc.address,
+      end: endLoc.address
+    }
+  })
+
+  map.value.add(polyline)
+  polylines.value.push(polyline)
+  console.log(`⚠️ 绘制备用直线: ${startLoc.title} → ${endLoc.title}`, info)
+}
+
+// 计算两点间距离（米）
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371000 // 地球半径（米）
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLng/2) * Math.sin(dLng/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c
+}
+
+// 预估行程时间
+const estimateDuration = (distance: number, transportType: string): string => {
+  let speed = 1.4 // 默认步行速度 米/秒
+  
+  if (transportType.includes('地铁') || transportType.includes('公交')) {
+    speed = 5 // 公共交通平均速度
+  } else if (transportType.includes('驾车') || transportType.includes('出租车')) {
+    speed = 10 // 驾车平均速度（考虑城市交通）
+  } else if (transportType.includes('骑行')) {
+    speed = 4 // 骑行速度
+  }
+  
+  const seconds = distance / speed
+  return formatDuration(seconds)
+}
+
+// 提取路线信息
+const extractRouteInfo = (route: any, transportType: string, startLoc: any, endLoc: any) => {
+  return {
+    distance: formatDistance(route.distance),
+    duration: formatDuration(route.time),
+    transport: transportType,
+    cost: calculateCost(route.distance, transportType)
+  }
+}
+
+// 计算费用
+const calculateCost = (distance: number, transportType: string) => {
+  const transport = transportType.toLowerCase()
+  
+  if (transport.includes('步行') || transport.includes('骑行')) {
+    return 0
+  } else if (transport.includes('公交') || transport.includes('地铁')) {
+    return Math.max(2, Math.ceil(distance / 10000) * 3)
+  } else if (transport.includes('出租车') || transport.includes('打车')) {
+    return Math.max(8, Math.ceil(distance / 1000) * 2.5)
+  } else if (transport.includes('驾车')) {
+    return Math.ceil(distance / 1000) * 0.8 // 油费估算
+  }
+  return 0
 }
 
 // 聚焦到指定地点
 const focusOnLocation = (location: any, zoom: boolean = false) => {
   currentLocation.value = location
   
-  // 查找地点的坐标
-  const coords = allLocations.value.find(l => l.id === location.id)?.coordinates
-  if (coords && map.value) {
-    map.value.setCenter(coords)
+  if (map.value) {
+    map.value.setCenter([location.longitude, location.latitude])
     if (zoom) {
       map.value.setZoom(16)
     }
@@ -505,7 +595,9 @@ const focusOnLocation = (location: any, zoom: boolean = false) => {
     // 高亮对应的标记点
     markers.value.forEach(marker => {
       const markerPos = marker.getPosition()
-      if (markerPos && markerPos.lng === coords[0] && markerPos.lat === coords[1]) {
+      if (markerPos && 
+          Math.abs(markerPos.lng - location.longitude) < 0.0001 && 
+          Math.abs(markerPos.lat - location.latitude) < 0.0001) {
         marker.setAnimation('AMAP_ANIMATION_BOUNCE')
         setTimeout(() => {
           marker.setAnimation(null)
@@ -524,20 +616,15 @@ const fitViewToAllMarkers = () => {
     bounds.extend(marker.getPosition())
   })
   
-  map.value.setBounds(bounds)
-}
-
-// 提取路线信息
-const extractRouteInfo = (result: any, startAct: Activity, endAct: Activity) => {
-  const route = result.routes[0]
-  if (!route) return null
-
-  return {
-    distance: formatDistance(route.distance),
-    duration: formatDuration(route.time),
-    transport: startAct.transport || '步行',
-    cost: calculateCost(route.distance, startAct.transport)
-  }
+  // 同时包含所有路线
+  polylines.value.forEach(polyline => {
+    const path = polyline.getPath()
+    path.forEach(point => {
+      bounds.extend(point)
+    })
+  })
+  
+  map.value.setBounds(bounds, true, [50, 50, 50, 50]) // 添加边距
 }
 
 const formatDistance = (meters: number) => meters < 1000 ? `${Math.round(meters)}米` : `${(meters / 1000).toFixed(1)}公里`
@@ -547,21 +634,16 @@ const formatDuration = (seconds: number) => {
   return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`
 }
 
-const calculateCost = (distance: number, transport?: string) => {
-  const t = (transport || '').toLowerCase()
-  if (t.includes('步行')) return 0
-  if (t.includes('公交') || t.includes('地铁')) return Math.max(2, Math.ceil(distance / 10000) * 3)
-  if (t.includes('打车')) return Math.max(8, Math.ceil(distance / 1000) * 2)
-  return 0
-}
-
-const fitViewToRoute = () => {
-  if (markers.value.length > 0) {
-    fitViewToAllMarkers()
-  } else if (polylines.value.length > 0) {
-    const allPaths = polylines.value.flatMap(p => p.getPath())
-    if (allPaths.length > 0) map.value.setFitView()
+const getTypeText = (type: string) => {
+  const typeMap: { [key: string]: string } = {
+    '餐饮': '餐饮',
+    '景点': '景点',
+    '住宿': '住宿',
+    '交通': '交通',
+    '购物': '购物',
+    '体验': '体验'
   }
+  return typeMap[type] || type
 }
 
 const clearOverlays = () => {
@@ -584,8 +666,14 @@ const onDayFilterChange = () => {
 }
 
 watch(() => props.plan, () => {
-  if (props.plan) effectivePlan.value = props.plan
-  if (map.value) drawAllMarkers()
+  if (props.plan) {
+    effectivePlan.value = props.plan
+    if (map.value) {
+      nextTick(() => {
+        drawAllMarkers()
+      })
+    }
+  }
 }, { deep: true })
 
 onMounted(async () => {
@@ -754,6 +842,35 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+.type-tag {
+  font-size: 12px;
+  color: #409eff;
+  background: #f0f7ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.start-tag {
+  font-size: 12px;
+  color: #52c41a;
+  background: #f6ffed;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid #b7eb8f;
+}
+
+.end-tag {
+  font-size: 12px;
+  color: #fa541c;
+  background: #fff2e8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid #ffbb96;
+}
+
 .location-address {
   font-size: 12px;
   color: #666;
@@ -826,17 +943,89 @@ onUnmounted(() => {
 }
 
 :deep(.custom-marker) {
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
   color: white;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 3px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+:deep(.start-marker) {
+  border-color: #52c41a;
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.4);
+}
+
+:deep(.end-marker) {
+  border-color: #fa541c;
+  box-shadow: 0 2px 8px rgba(250, 84, 28, 0.4);
+}
+
+:deep(.custom-marker:hover) {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+:deep(.marker-content) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+:deep(.marker-day) {
+  font-size: 10px;
+  line-height: 1;
+}
+
+:deep(.marker-icon) {
+  font-size: 12px;
+  line-height: 1;
+}
+
+:deep(.location-info-window) {
+  padding: 8px;
+  min-width: 200px;
+}
+
+:deep(.location-info-window h4) {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+:deep(.location-info-window p) {
+  margin: 4px 0;
+  font-size: 12px;
+  color: #666;
+}
+
+:deep(.start-badge) {
+  color: #52c41a;
+  font-weight: bold;
+  margin: 4px 0 0 0 !important;
+  padding: 2px 6px;
+  background: #f6ffed;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+:deep(.end-badge) {
+  color: #fa541c;
+  font-weight: bold;
+  margin: 4px 0 0 0 !important;
+  padding: 2px 6px;
+  background: #fff2e8;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 @media (max-width: 768px) {

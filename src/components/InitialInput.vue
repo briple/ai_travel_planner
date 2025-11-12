@@ -163,7 +163,7 @@ const tripParams = ref({
 // 监听语音识别结果，直接应用到输入框
 watch(resultText, (newText) => {
   if (newText && newText.trim()) {
-    currentInput.value = newText;
+    currentInput.value += newText;
   }
 });
 
