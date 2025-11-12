@@ -9,7 +9,6 @@
 <script setup lang="ts">
 
 import { onMounted, onUnmounted } from 'vue'
-
 const EDGE_THRESHOLD = 30 // 建议设为 30~50px，1000 太大了（几乎全屏都拦截）
 
 const preventEdgeSwipe = (e: TouchEvent) => {

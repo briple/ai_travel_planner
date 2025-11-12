@@ -307,12 +307,16 @@ onMounted(async() => {
 
   if(props.first){
     isGenerating.value = true;
+    chatMessages.value.push({
+      role: 'user',
+      content: props.initialUserInput,
+    })
     generatePlanApi.startGenerate({
       input: props.initialUserInput,
       conversationId: Number(props.currentChatId),
       userId: Number(localStorage.getItem('userId'))
     }).then((res) => {
-        console.log('获得响应', res)
+        chatMessages.value.pop()
         getChatHistory(props.currentChatId).then(res1 => {
           console.log('获得响应2', res1)
         })
@@ -320,7 +324,6 @@ onMounted(async() => {
        console.log('lalala' + err)
     }).finally(() => {
       isGenerating.value = false;
-
     })
   }  else {
     await getChatHistory(props.currentChatId)
@@ -440,28 +443,22 @@ const sendMessage = async () => {
 
   // 添加用户消息
   addUserMessage(currentInput.value);
-  
   const userInput = currentInput.value;
   currentInput.value = '';
   
   // 开始生成响应
   isGenerating.value = true;
+  generatePlanApi.continueGenerate({
+      input: userInput,
+      conversationId: Number(props.currentChatId),
+      userId: Number(localStorage.getItem('userId'))
+  }).then(response => {
+   
+      getChatHistory()
+  }).finally(() => {
+     isGenerating = false
+  })
   
-  // 模拟AI响应时间
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  try {
-    // 解析用户输入并生成行程
-    const plan = parseTripInput(userInput);
-    
-    // 添加AI响应
-    addAIMessage('我已经为您生成了详细的旅行计划，请查看：', 'trip_plan', plan);
-    
-  } catch (error) {
-    addAIMessage('抱歉，我无法理解您的旅行需求。请提供更详细的信息，例如目的地、天数、预算和偏好。');
-  } finally {
-    isGenerating.value = false;
-  }
 };
 
 // 简化的行程解析逻辑 - 更新以支持新参数
