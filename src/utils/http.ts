@@ -8,7 +8,7 @@ import { ElMessage } from 'element-plus'
 import { ApiResponse } from '../types/api'
 // 创建 axios 实例
 const http: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: 'http://localhost:8081',
   timeout: 600000,
   headers: {
     'Content-Type': 'application/json'
