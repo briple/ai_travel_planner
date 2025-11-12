@@ -179,6 +179,7 @@
         :currentChatId="activeChatId"
         :initialUserInput="initialUserInput"
         :initialTripParams="initialTripParams"
+        :first="first"
       />
       
       <TripManagement v-if="activeTab === 'management'" />
@@ -220,15 +221,18 @@ const expandedCategories = ref({
 const showInitialInput = ref(true);
 const initialUserInput = ref('');
 const initialTripParams = ref({});
-
+const first = ref(true)
 // 处理开始聊天
 const handleStartChat = (data) => {
-  const { input, params, conversationId } = data;
+  const { input, params, conversationId,first: isFirst } = data;
   // 保存初始输入和参数
+  console.log('lalala', conversationId)
+  console.log('lalala', first)
   initialUserInput.value = input;
   initialTripParams.value = params;
   activeChatId.value = conversationId;
   showInitialInput.value = false;
+  first.value = isFirst;
   ElMessage.success('开始规划您的旅行！');
 };
 
@@ -238,7 +242,6 @@ const startNewChat = () => {
   activeChatId.value = null;
   initialUserInput.value = '';
   initialTripParams.value = {};
-  activeChatId.value = null;
   ElMessage.success('已开始新对话');
 };
 
@@ -287,7 +290,7 @@ const loadChat = async (chatId) => {
       // 设置当前活跃聊天
       activeChatId.value = chatId;
       showInitialInput.value = false;
-      
+      first.value = false;
       ElMessage.success('对话加载成功');
 };
 

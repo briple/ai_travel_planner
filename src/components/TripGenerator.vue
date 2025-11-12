@@ -235,7 +235,7 @@ import {useXfAsr} from "../utils/xunfeiUtil";
 import { conversationApi } from '../api/conversationApi';
 import { travelPlanApi } from '../api/travelPlanApi';
 import TripPlanCard from './TripPlanCard.vue' // ←← 确保路径正确！
-
+import generatePlanApi from '../api/generatePlanApi';
 // 接收父组件传递的参数
 const props = defineProps({
   currentChatId: {
@@ -258,7 +258,8 @@ const props = defineProps({
       accommodation: null,
       preferences: []
     })
-  }
+  },
+  first: Boolean
 });
 
 const { startRecognition, stopRecognition, resultText } = useXfAsr();
@@ -293,6 +294,7 @@ onMounted(async() => {
   console.log('currentChatId:', props.currentChatId);
   console.log('initialUserInput:', props.initialUserInput);
   console.log('initialTripParams:', props.initialTripParams);
+  console.log('first', props.first)
   console.log('==============================');
 
   // 如果有初始参数，应用到组件中
@@ -302,13 +304,35 @@ onMounted(async() => {
       ...props.initialTripParams
     };
   }
-  // 如果有初始用户输入，填充到输入框
-  if (props.initialUserInput) {
-    currentInput.value = props.initialUserInput;
-  }
 
-  // 调用API获取该对话的所有消息
-  const response = await conversationApi.getMessagesByConversationId(props.currentChatId);
+  if(props.first){
+    isGenerating.value = true;
+    generatePlanApi.startGenerate({
+      input: props.initialUserInput,
+      conversationId: Number(props.currentChatId),
+      userId: Number(localStorage.getItem('userId'))
+    }).then((res) => {
+        console.log('获得响应', res)
+        getChatHistory(props.currentChatId).then(res1 => {
+          console.log('获得响应2', res1)
+        })
+    }).catch( err => {
+       console.log('lalala' + err)
+    }).finally(() => {
+      isGenerating.value = false;
+
+    })
+  }  else {
+    await getChatHistory(props.currentChatId)
+  }
+  
+
+});
+
+
+const getChatHistory = async (id) => {
+   // 调用API获取该对话的所有消息
+  const response = await conversationApi.getMessagesByConversationId(id);
   console.log('加载到的对话消息:', response);
   if (Array.isArray(response)) {
     // 将API返回的消息转换为前端需要的格式
@@ -320,8 +344,6 @@ onMounted(async() => {
       timestamp: msg.timestamp,
       planId: msg.planId,
     }));
-
-    
     for (const msg of messages) {
       if(msg.planId){
         const planResponse = await travelPlanApi.getTravelPlanById(msg.planId);
@@ -332,9 +354,19 @@ onMounted(async() => {
     chatMessages.value = messages;
       
   }
-      
+}
 
-});
+const emit = defineEmits(['chat-update']);
+watch(() => props.currentChatId, (newChatId, oldChatId) => {
+  console.log('currentChatId 发生变化:', { oldChatId, newChatId });
+  if (newChatId && newChatId !== oldChatId) {
+    // 加载对应聊天记录
+    getChatHistory(newChatId);
+  } else if (!newChatId) {
+    // 如果没有聊天ID，清空消息
+    messages.value = [];
+  }
+}, { immediate: true });
 
 
 

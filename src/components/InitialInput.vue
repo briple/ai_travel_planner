@@ -138,7 +138,7 @@
 import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useXfAsr } from "../utils/xunfeiUtil";
-import generatePlanApi from '../api/generatePlanApi';
+import conversationApi from '../api/conversationApi';
 const emit = defineEmits(['start-chat']);
 
 // 使用相同的语音识别接口
@@ -192,7 +192,8 @@ const onSend = async () => {
       return
     }
     const res = await conversationApi.createConversation(userId)
-    const conversationId = res.data
+    console.log('lalala',res)
+    const conversationId = res
     emit('start-chat', {
       input: currentInput.value,
       params: { ...tripParams.value },
